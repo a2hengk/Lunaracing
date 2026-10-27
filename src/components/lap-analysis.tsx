@@ -31,11 +31,11 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
 
   const proj = useMemo(() => fitToBox(outline, 560, 440), [outline]);
 
-  // Wie viel Zeit pro Meter verloren oder gewonnen wird: die Steigung des Deltas
+  // Wie viel Zeit pro Meter verloren oder gewonnen wird: die Steigung des Deltas über ca. 40 m
   const lossRate = useMemo(
     () =>
       delta.map((p, i) => {
-        const prev = delta.at(Math.max(0, i - 4))!;
+        const prev = delta.at(Math.max(0, i - 8))!;
         const span = p.dist - prev.dist;
         return span > 0 ? (p.delta - prev.delta) / span : 0;
       }),
