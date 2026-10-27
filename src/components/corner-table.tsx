@@ -39,7 +39,7 @@ export function lossSummary(row: Row, labels: { reference: string; compare: stri
   if (cmp.coastM - ref.coastM >= 20) parts.push(`${de(cmp.coastM - ref.coastM)} m mehr gerollt`);
   if (row.cmpOffM > 0) parts.push(`${de(row.cmpOffM)} m neben der Strecke`);
   const what = parts.length ? parts.join(", ") : "keine klare Ursache in Bremse, Speed oder Gas";
-  return `Kurve ${corner.n}: ${labels.compare} ${dt > 0 ? "verliert" : "gewinnt"} ${de(Math.abs(dt), 2)} s gegenüber ${labels.reference}. ${what.charAt(0).toUpperCase()}${what.slice(1)}.`;
+  return `Kurve ${corner.n}${corner.name ? ` (${corner.name})` : ""}: ${labels.compare} ${dt > 0 ? "verliert" : "gewinnt"} ${de(Math.abs(dt), 2)} s gegenüber ${labels.reference}. ${what.charAt(0).toUpperCase()}${what.slice(1)}.`;
 }
 
 export function CornerTable({
@@ -102,6 +102,7 @@ export function CornerTable({
                 >
                   <td className="py-2 pr-3">
                     <span className="font-semibold">{r.corner.n}</span>
+                    {r.corner.name && <span className="ml-2">{r.corner.name}</span>}
                     <span className="ml-2 text-xs text-muted">bei {de(r.corner.apex / 1000, 1)} km</span>
                   </td>
                   <td className="py-2 pr-3">

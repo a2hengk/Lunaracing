@@ -48,6 +48,14 @@ export type StoredLap = {
     engineMap?: number;
     brakeBiasFront?: number;
   };
+  /** true, wenn das Auto in dieser Runde in der Boxengasse war (In- oder Out-Lap) */
+  pit?: boolean;
+  /** Durchschnitt über die Runde, pro Rad VL, VR, HL, HR */
+  tyres?: {
+    /** Lauffläche links, Mitte, rechts in °C */
+    tempC: [number, number, number][];
+    pressureKpa: number[];
+  };
   /** Abschnitte (Distanz in m), in denen das Auto neben der Strecke war */
   offTrack?: { from: number; to: number }[];
   /** spaltenweise Messwerte, alle gleich lang */

@@ -140,7 +140,7 @@ export function LapAnalysis({
     setRange({ from: Math.max(0, d - 300), to: Math.min(length, d + 200) });
 
   return (
-    <div id="analyse" className="grid scroll-mt-6 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+    <div id="analyse" className="grid scroll-mt-6 grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <section className="rounded-xl border border-line bg-panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Strecke</h2>
@@ -202,6 +202,7 @@ export function LapAnalysis({
                     setRange({ from: l.c.from, to: l.c.to });
                   }}
                 >
+                  <title>{l.c.name ? `Kurve ${l.c.n}: ${l.c.name}` : `Kurve ${l.c.n}`}</title>
                   <line x1={l.mx} y1={l.my} x2={l.x} y2={l.y} stroke="var(--color-muted)" strokeWidth={1} />
                   <circle cx={l.x} cy={l.y} r={9} fill="var(--color-panel)" stroke="var(--color-muted)" strokeWidth={1} />
                   <text x={l.x} y={l.y + 3.5} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-fg)">

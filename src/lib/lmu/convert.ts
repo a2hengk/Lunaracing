@@ -122,6 +122,10 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
       usage: lapUsage(raw, start.ts, finish.ts),
       aids: lapAids(raw, start.ts, finish.ts, step),
       offTrack: lapOffTrack(raw, start.ts, finish.ts, (t) => at(lapDistCh, t) - startDist),
+      pit: (raw.events["In Pits"] ?? []).some(
+        (e) => e.value > 0 && e.ts > start.ts && e.ts < finish.ts,
+      ) || step(ev("In Pits"), start.ts + 0.01) > 0,
+      tyres: lapTyres(raw, start.ts, finish.ts),
       data,
     });
   }
@@ -159,6 +163,29 @@ function lapUsage(raw: RawRecording, from: number, to: number): StoredLap["usage
     fuelL: drop(raw, "Fuel Level", from, to),
     vePct: drop(raw, "Virtual Energy", from, to),
     tyreWearPct: wear.every((v) => v !== undefined) ? (wear as [number, number, number, number]) : undefined,
+  };
+}
+
+/** Mittelwert eines Kanals zwischen from und to, undefined wenn er fehlt. */
+function meanBetween(raw: RawRecording, name: string, from: number, to: number) {
+  const c = raw.channels[name];
+  if (!c?.values.length) return undefined;
+  const i0 = Math.max(0, Math.floor((from - raw.t0) * c.hz));
+  const i1 = Math.min(c.values.length, Math.ceil((to - raw.t0) * c.hz));
+  if (i1 <= i0) return undefined;
+  return round(mean(c.values.slice(i0, i1)), 1);
+}
+
+function lapTyres(raw: RawRecording, from: number, to: number): StoredLap["tyres"] {
+  const wheels = [1, 2, 3, 4];
+  const temps = wheels.map((w) =>
+    ["TyresTempLeft", "TyresTempCentre", "TyresTempRight"].map((n) => meanBetween(raw, `${n}.${w}`, from, to)),
+  );
+  const pressure = wheels.map((w) => meanBetween(raw, `TyresPressure.${w}`, from, to));
+  if (temps.flat().some((v) => v === undefined) || pressure.some((v) => v === undefined)) return undefined;
+  return {
+    tempC: temps as [number, number, number][],
+    pressureKpa: pressure as number[],
   };
 }
 

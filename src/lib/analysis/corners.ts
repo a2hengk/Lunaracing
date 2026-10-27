@@ -10,6 +10,8 @@ export type Corner = {
   apex: number;
   from: number;
   to: number;
+  /** Name aus src/data/tracks.ts, wenn bekannt */
+  name?: string;
 };
 
 /** Ab so viel Speed-Verlust gilt eine Stelle als Kurve */
