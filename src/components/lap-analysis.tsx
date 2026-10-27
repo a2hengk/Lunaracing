@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DeltaPoint, DistPoint } from "@/lib/telemetry/compare";
+import type { Corner } from "@/lib/analysis/corners";
 import { fitToBox, pointAtDistance, type OutlinePoint } from "@/lib/track/outline";
 
 type Mode = "delta" | "speed" | "inputs";
@@ -15,19 +16,40 @@ type Props = {
   delta: DeltaPoint[];
   stepM: number;
   labels: { reference: string; compare: string };
+  /** erkannte Kurven, als Nummern auf der Karte */
+  corners?: Corner[];
+  /** wo die Vergleichsrunde neben der Strecke war */
+  offTrack?: { from: number; to: number }[];
+  /** sichtbarer Ausschnitt im Telemetrie-Graph, null = ganze Runde. Ohne Angabe verwaltet die Komponente ihn selbst. */
+  range?: Range | null;
+  onRange?: (r: Range | null) => void;
 };
 
-type Range = { from: number; to: number };
+export type Range = { from: number; to: number };
 
-export function LapAnalysis({ outline, reference, compare, delta, stepM, labels }: Props) {
+export function LapAnalysis({
+  outline,
+  reference,
+  compare,
+  delta,
+  stepM,
+  labels,
+  corners = [],
+  offTrack = [],
+  range: rangeProp,
+  onRange,
+}: Props) {
   const [mode, setMode] = useState<Mode>("delta");
   const [hover, setHover] = useState<number | null>(null);
-  const [range, setRange] = useState<Range | null>(null);
+  const [ownRange, setOwnRange] = useState<Range | null>(null);
+  const range = rangeProp === undefined ? ownRange : rangeProp;
+  const setRange = onRange ?? setOwnRange;
 
   const length = reference.at(-1)?.dist ?? 1;
   const view = range ?? { from: 0, to: length };
 
-  const proj = useMemo(() => fitToBox(outline, 560, 440), [outline]);
+  // Rand groß genug für die Kurvennummern neben der Strecke
+  const proj = useMemo(() => fitToBox(outline, 560, 440, 34), [outline]);
 
   // Wie viel Zeit pro Meter verloren oder gewonnen wird: die Steigung des Deltas über ca. 40 m
   const lossRate = useMemo(
@@ -59,6 +81,43 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
 
   const marker = hover !== null ? pointAtDistance(outline, hover) : undefined;
 
+  // Kurvennummern neben die Strecke setzen, auf die Seite weg vom Streckenmittelpunkt
+  const cornerLabels = useMemo(() => {
+    const pts = outline.map((p) => proj.project(p));
+    const cx = pts.reduce((a, p) => a + p[0], 0) / (pts.length || 1);
+    const cy = pts.reduce((a, p) => a + p[1], 0) / (pts.length || 1);
+    return corners.map((c) => {
+      const a = pointAtDistance(outline, c.apex - 10);
+      const b = pointAtDistance(outline, c.apex + 10);
+      const m = pointAtDistance(outline, c.apex);
+      if (!a || !b || !m) return null;
+      const [ax, ay] = proj.project(a);
+      const [bx, by] = proj.project(b);
+      const [mx, my] = proj.project(m);
+      const len = Math.hypot(bx - ax, by - ay) || 1;
+      let nx = -(by - ay) / len;
+      let ny = (bx - ax) / len;
+      if (nx * (mx - cx) + ny * (my - cy) < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      return { c, x: mx + nx * 18, y: my + ny * 18, mx, my };
+    });
+  }, [corners, outline, proj]);
+
+  const offTrackLines = useMemo(
+    () =>
+      offTrack.map((o) => {
+        const pts: string[] = [];
+        for (let d = o.from; d <= o.to; d += 5) {
+          const p = pointAtDistance(outline, d);
+          if (p) pts.push(proj.project(p).join(","));
+        }
+        return { key: o.from, points: pts.join(" ") };
+      }),
+    [offTrack, outline, proj],
+  );
+
   const nearestOnMap = (e: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
     const sx = ((e.clientX - box.left) / box.width) * proj.width;
@@ -81,7 +140,7 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
     setRange({ from: Math.max(0, d - 300), to: Math.min(length, d + 200) });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+    <div id="analyse" className="grid scroll-mt-6 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <section className="rounded-xl border border-line bg-panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Strecke</h2>
@@ -128,13 +187,41 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
               opacity={range && (s.mid < view.from || s.mid > view.to) ? 0.2 : 1}
             />
           ))}
+          {offTrackLines.map((o) => (
+            <polyline key={o.key} points={o.points} fill="none" stroke="hsl(30 95% 58%)" strokeWidth={11} strokeOpacity={0.45} strokeLinecap="round" />
+          ))}
           <StartFinish outline={outline} project={proj.project} />
+          {cornerLabels.map(
+            (l) =>
+              l && (
+                <g
+                  key={l.c.n}
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRange({ from: l.c.from, to: l.c.to });
+                  }}
+                >
+                  <line x1={l.mx} y1={l.my} x2={l.x} y2={l.y} stroke="var(--color-muted)" strokeWidth={1} />
+                  <circle cx={l.x} cy={l.y} r={9} fill="var(--color-panel)" stroke="var(--color-muted)" strokeWidth={1} />
+                  <text x={l.x} y={l.y + 3.5} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-fg)">
+                    {l.c.n}
+                  </text>
+                </g>
+              ),
+          )}
           {marker && (
             <circle cx={proj.project(marker)[0]} cy={proj.project(marker)[1]} r={7} fill="var(--color-fg)" stroke="var(--color-bg)" strokeWidth={3} />
           )}
         </svg>
         <Legend mode={mode} />
-        <p className="mt-2 text-[11px] text-muted">Klick auf die Strecke zoomt die Telemetrie auf diese Stelle.</p>
+        {offTrack.length > 0 && (
+          <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted">
+            <i className="h-2 w-5 rounded-full" style={{ background: "hsl(30 95% 58% / 0.6)" }} />
+            {labels.compare} neben der Strecke (geschätzt aus Path Lateral und Track Edge)
+          </p>
+        )}
+        <p className="mt-2 text-[11px] text-muted">Klick auf die Strecke oder eine Kurvennummer zoomt die Telemetrie auf diese Stelle.</p>
       </section>
 
       <TelemetryChart

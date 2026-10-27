@@ -16,8 +16,29 @@ import { basename, join } from "node:path";
 import { convertRecording, REQUIRED_CHANNELS, type RawRecording } from "../src/lib/lmu/convert";
 
 const OUT_DIR = "src/data/sessions";
-const EXTRA_CHANNELS = ["Ambient Temperature", "Track Temperature"];
-const EVENTS = ["Lap", "Lap Time", "Gear", "Current Sector", "Last Sector1", "Last Sector2"];
+const EXTRA_CHANNELS = [
+  "Ambient Temperature",
+  "Track Temperature",
+  "Fuel Level",
+  "Virtual Energy",
+  "Tyres Wear",
+  "TC",
+  "Path Lateral",
+  "Track Edge",
+];
+const EVENTS = [
+  "Lap",
+  "Lap Time",
+  "Gear",
+  "Current Sector",
+  "Last Sector1",
+  "Last Sector2",
+  "ABS",
+  "TCLevel",
+  "ABSLevel",
+  "FuelMixtureMap",
+  "Brake Bias Rear",
+];
 
 const arg = process.argv[2];
 if (!arg) {
@@ -86,8 +107,19 @@ async function readRecording(file: string): Promise<RawRecording> {
     for (const name of [...REQUIRED_CHANNELS, ...EXTRA_CHANNELS]) {
       const hz = list.get(name);
       if (!hz) continue;
-      const vals = await rows(`select value from ${q(name)}`);
-      channels[name] = { hz, values: vals.map((r) => Number(r.value)) };
+      const cols = (
+        await rows(`select column_name from information_schema.columns where table_name = '${name.replaceAll("'", "''")}'`)
+      ).map((r) => String(r.column_name));
+      if (cols.includes("value")) {
+        const vals = await rows(`select value from ${q(name)}`);
+        channels[name] = { hz, values: vals.map((r) => Number(r.value)) };
+      } else {
+        // Kanäle mit einem Wert pro Rad: value1..value4 → "<Name>.1" .. "<Name>.4"
+        for (const col of cols.filter((c) => /^value\d$/.test(c))) {
+          const vals = await rows(`select ${col} as v from ${q(name)}`);
+          channels[`${name}.${col.slice(5)}`] = { hz, values: vals.map((r) => Number(r.v)) };
+        }
+      }
     }
 
     const events: RawRecording["events"] = {};

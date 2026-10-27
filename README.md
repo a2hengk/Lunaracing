@@ -2,7 +2,7 @@
 
 Telemetrie-Tracker für Le Mans Ultimate. Runden aufnehmen, speichern und danach vergleichen: Delta, Speed, Brems- und Gaspunkte, direkt auf der Streckenkarte.
 
-Stand: Phase 1. Echte Sessions aus LMU lassen sich importieren und mit Streckenkarte und Rundenvergleich ansehen. Die Datenbank ist noch nicht angebunden, importierte Sessions liegen als JSON in `src/data/sessions/`.
+Stand: Phase 2 angefangen. Echte Sessions aus LMU lassen sich importieren und mit Streckenkarte, Telemetrie (Speed, Gas, Bremse, Delta), Kurven-Analyse und Fahrstil-Kennzahlen ansehen. Die Datenbank ist noch nicht angebunden, importierte Sessions liegen als JSON in `src/data/sessions/`.
 
 ## Starten
 
@@ -47,6 +47,8 @@ LMU (1.2, Format-Version 1) schreibt pro Aufnahme eine DuckDB-Datei:
 | Runden aufs Distanz-Raster bringen, Delta | `src/lib/telemetry/compare.ts` |
 | Strecken-Outline, SVG-Projektion | `src/lib/track/outline.ts` |
 | Rundentabelle mit Referenz/Vergleich | `src/components/session-view.tsx` |
+| Kurven erkennen, Kennzahlen pro Kurve | `src/lib/analysis/corners.ts`, `src/components/corner-table.tsx` |
+| Fahrstil pro Runde (Vollgas, Trail-Braking, Rollen, Lupfer) | `src/lib/analysis/style.ts`, `src/components/lap-stats.tsx` |
 | Karte + Vergleichsgraph | `src/components/lap-analysis.tsx` |
 | Datenbankschema (noch nicht benutzt) | `src/db/schema.ts`, `drizzle/` |
 | Demo mit erfundenen Daten (`/demo`) | `src/lib/demo.ts` |

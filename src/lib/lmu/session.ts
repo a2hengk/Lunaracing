@@ -28,6 +28,28 @@ export type StoredLap = {
   sectorsMs: [number, number, number];
   /** false, wenn LMU die Runde nicht gewertet hat (z. B. Track Limits) */
   valid: boolean;
+  /** Verbrauch in der Runde. Fehlt bei älteren Importen. */
+  usage?: {
+    fuelL?: number;
+    /** Virtual Energy in Prozentpunkten */
+    vePct?: number;
+    /** Reifenverschleiß in Prozentpunkten, VL, VR, HL, HR */
+    tyreWearPct?: [number, number, number, number];
+  };
+  /** Fahrhilfen in der Runde */
+  aids?: {
+    /** Sekunden, in denen das ABS eingegriffen hat */
+    absSeconds?: number;
+    /** Sekunden, in denen die Traktionskontrolle eingegriffen hat */
+    tcSeconds?: number;
+    /** Einstellungen beim Start der Runde */
+    tcLevel?: number;
+    absLevel?: number;
+    engineMap?: number;
+    brakeBiasFront?: number;
+  };
+  /** Abschnitte (Distanz in m), in denen das Auto neben der Strecke war */
+  offTrack?: { from: number; to: number }[];
   /** spaltenweise Messwerte, alle gleich lang */
   data: {
     t: number[];
