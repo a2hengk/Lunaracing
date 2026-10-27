@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LapAnalysis } from "@/components/lap-analysis";
+import { CornerTable } from "@/components/corner-table";
+import { LapAnalysis, type Range } from "@/components/lap-analysis";
+import { LapStats } from "@/components/lap-stats";
+import { cornerStats, detectCorners } from "@/lib/analysis/corners";
+import { drivingStyle } from "@/lib/analysis/style";
 import { formatSector } from "@/lib/format";
 import { bestLap, lapSamples, type SessionFile } from "@/lib/lmu/session";
 import { deltaTrace, resampleByDistance } from "@/lib/telemetry/compare";
@@ -26,6 +30,30 @@ export function SessionView({ session }: { session: SessionFile }) {
   const reference = byLap.get(refLap)!;
   const compare = byLap.get(cmpLap)!;
   const delta = useMemo(() => deltaTrace(reference, compare), [reference, compare]);
+
+  const [range, setRange] = useState<Range | null>(null);
+  const [activeCorner, setActiveCorner] = useState<number | null>(null);
+
+  // Kurven einmal aus der Bestrunde, damit die Nummern für alle Vergleiche gleich bleiben
+  const corners = useMemo(() => detectCorners(byLap.get(best.lap)!, STEP_M), [byLap, best]);
+  const cornerRows = useMemo(
+    () =>
+      corners.map((c) => {
+        const ref = cornerStats(reference, c, STEP_M);
+        const cmp = cornerStats(compare, c, STEP_M);
+        const off = (session.laps.find((l) => l.lap === cmpLap)?.offTrack ?? []).reduce(
+          (sum, o) => sum + Math.max(0, Math.min(o.to, c.to) - Math.max(o.from, c.from)),
+          0,
+        );
+        return { corner: c, ref, cmp, dt: cmp.time - ref.time, cmpOffM: off };
+      }),
+    [corners, reference, compare, session, cmpLap],
+  );
+  const styles = useMemo(
+    () => new Map(session.laps.map((l) => [l.lap, drivingStyle(byLap.get(l.lap)!)])),
+    [session, byLap],
+  );
+  const labels = { reference: `Runde ${refLap}`, compare: `Runde ${cmpLap}` };
 
   // Beste Sektorzeiten aus gewerteten Runden, für die Markierung in der Tabelle
   const bestSectors = [0, 1, 2].map((i) =>
@@ -85,8 +113,28 @@ export function SessionView({ session }: { session: SessionFile }) {
         compare={compare}
         delta={delta}
         stepM={STEP_M}
-        labels={{ reference: `Runde ${refLap}`, compare: `Runde ${cmpLap}` }}
+        labels={labels}
+        corners={corners}
+        offTrack={session.laps.find((l) => l.lap === cmpLap)?.offTrack}
+        range={range}
+        onRange={(r) => {
+          setRange(r);
+          setActiveCorner(r ? (corners.find((c) => c.from === r.from && c.to === r.to)?.n ?? null) : null);
+        }}
       />
+
+      <CornerTable
+        rows={cornerRows}
+        labels={labels}
+        activeCorner={activeCorner}
+        onSelect={(c) => {
+          setRange({ from: c.from, to: c.to });
+          setActiveCorner(c.n);
+          document.getElementById("analyse")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
+
+      <LapStats laps={session.laps} styles={styles} />
     </div>
   );
 }

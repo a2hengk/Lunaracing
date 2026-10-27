@@ -119,6 +119,9 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
       timeMs: Math.round(timeS * 1000),
       sectorsMs: sectors.map((s) => Math.round(s * 1000)) as [number, number, number],
       valid,
+      usage: lapUsage(raw, start.ts, finish.ts),
+      aids: lapAids(raw, start.ts, finish.ts, step),
+      offTrack: lapOffTrack(raw, start.ts, finish.ts, (t) => at(lapDistCh, t) - startDist),
       data,
     });
   }
@@ -141,6 +144,94 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
     sampleHz: OUT_HZ,
     laps,
   };
+}
+
+/** Differenz eines Kanals zwischen Rundenstart und -ende (z. B. Sprit), undefined wenn er fehlt. */
+function drop(raw: RawRecording, name: string, from: number, to: number) {
+  const c = raw.channels[name];
+  if (!c?.values.length) return undefined;
+  return round(sampleAt(c, raw.t0, from) - sampleAt(c, raw.t0, to), 2);
+}
+
+function lapUsage(raw: RawRecording, from: number, to: number): StoredLap["usage"] {
+  const wear = [1, 2, 3, 4].map((w) => drop(raw, `Tyres Wear.${w}`, from, to));
+  return {
+    fuelL: drop(raw, "Fuel Level", from, to),
+    vePct: drop(raw, "Virtual Energy", from, to),
+    tyreWearPct: wear.every((v) => v !== undefined) ? (wear as [number, number, number, number]) : undefined,
+  };
+}
+
+/** Wie lange ein Ja/Nein-Event zwischen from und to auf „ja“ stand, in Sekunden. */
+function eventSeconds(list: { ts: number; value: number }[], from: number, to: number) {
+  const sorted = list.toSorted((a, b) => a.ts - b.ts);
+  let total = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const e = sorted.at(i)!;
+    if (e.value <= 0) continue;
+    const end = sorted.at(i + 1)?.ts ?? to;
+    total += Math.max(0, Math.min(end, to) - Math.max(e.ts, from));
+  }
+  return round(total, 1);
+}
+
+function lapAids(
+  raw: RawRecording,
+  from: number,
+  to: number,
+  step: (list: { ts: number; value: number }[], t: number) => number,
+): StoredLap["aids"] {
+  const abs = raw.events["ABS"] ?? [];
+  const tc = raw.channels["TC"];
+  let tcSeconds: number | undefined;
+  if (tc?.values.length) {
+    const i0 = Math.max(0, Math.floor((from - raw.t0) * tc.hz));
+    const i1 = Math.min(tc.values.length, Math.ceil((to - raw.t0) * tc.hz));
+    tcSeconds = round(tc.values.slice(i0, i1).filter((v) => v > 0).length / tc.hz, 1);
+  }
+  const ev = (name: string) => {
+    const list = raw.events[name];
+    return list?.length ? step(list.toSorted((a, b) => a.ts - b.ts), from + 0.01) : undefined;
+  };
+  const rear = ev("Brake Bias Rear");
+  return {
+    absSeconds: eventSeconds(abs, from, to),
+    tcSeconds,
+    tcLevel: ev("TCLevel"),
+    absLevel: ev("ABSLevel"),
+    engineMap: ev("FuelMixtureMap"),
+    brakeBiasFront: rear !== undefined ? round((1 - rear) * 100, 1) : undefined,
+  };
+}
+
+/**
+ * Wo das Auto neben der Strecke war: Abstand zur Mittellinie größer als der Abstand
+ * Mittellinie–Rand plus halbe Autobreite. Dann sind alle vier Räder draußen.
+ */
+const HALF_CAR_M = 1;
+
+function lapOffTrack(
+  raw: RawRecording,
+  from: number,
+  to: number,
+  distAt: (t: number) => number,
+): { from: number; to: number }[] {
+  const lat = raw.channels["Path Lateral"];
+  const edge = raw.channels["Track Edge"];
+  if (!lat?.values.length || !edge?.values.length) return [];
+  const out: { from: number; to: number }[] = [];
+  let open: number | null = null;
+  for (let t = from; t <= to; t += 1 / lat.hz) {
+    const off = Math.abs(sampleAt(lat, raw.t0, t)) > Math.abs(sampleAt(edge, raw.t0, t)) + HALF_CAR_M;
+    const d = Math.max(0, distAt(t));
+    if (off && open === null) open = d;
+    if (!off && open !== null) {
+      out.push({ from: round(open, 0), to: round(d, 0) });
+      open = null;
+    }
+  }
+  if (open !== null) out.push({ from: round(open, 0), to: round(Math.max(0, distAt(to)), 0) });
+  return out;
 }
 
 /**

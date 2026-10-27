@@ -8,6 +8,8 @@ export type DistPoint = {
   speed: number;
   throttle: number;
   brake: number;
+  /** -1..1, 0 wenn die Quelle keine Lenkung liefert */
+  steering: number;
 };
 
 /**
@@ -35,6 +37,7 @@ export function resampleByDistance(samples: Sample[], stepM = 5): DistPoint[] {
       speed: mix(a.speed, b.speed),
       throttle: mix(a.throttle, b.throttle),
       brake: mix(a.brake, b.brake),
+      steering: mix(a.steering ?? 0, b.steering ?? 0),
     });
   }
   return out;
