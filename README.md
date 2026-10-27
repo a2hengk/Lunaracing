@@ -2,44 +2,54 @@
 
 Telemetrie-Tracker für Le Mans Ultimate. Runden aufnehmen, speichern und danach vergleichen: Delta, Speed, Brems- und Gaspunkte, direkt auf der Streckenkarte.
 
-Stand: Phase 1 angefangen. Die Startseite läuft mit erfundenen Demo-Daten, bis der Import echter LMU-Dateien steht.
+Stand: Phase 1. Echte Sessions aus LMU lassen sich importieren und mit Streckenkarte und Rundenvergleich ansehen. Die Datenbank ist noch nicht angebunden, importierte Sessions liegen als JSON in `src/data/sessions/`.
 
 ## Starten
 
 ```bash
 npm install
 npm run dev     # http://localhost:3000
-npm test        # Tests für Runden, Vergleich und Streckenkarte
+npm test
 ```
 
-## Was schon da ist
+## Sessions importieren
+
+1. In LMU unter Einstellungen › Gameplay die automatische Telemetrie-Aufnahme anschalten.
+2. Fahren. Nach der Session zurück ins Menü, damit die Datei fertig geschrieben ist.
+3. Im Projekt:
+
+   ```bash
+   npm run import -- "C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\UserData\Telemetry"
+   ```
+
+   Liest alle `.duckdb`-Dateien im Ordner. Schon importierte Dateien und Aufnahmen ohne ganze Runde werden übersprungen.
+
+Telemetrie-Dateien selbst werden nie committet (`.gitignore`), nur die JSON-Dateien daraus.
+
+## Aufbau der LMU-Dateien
+
+LMU (1.2, Format-Version 1) schreibt pro Aufnahme eine DuckDB-Datei:
+
+- **Kanäle:** eine Tabelle pro Kanal ohne Zeitstempel. Zeile i gehört zur Zeit t0 + i / Frequenz, t0 ist der erste Wert von `GPS Time`. Frequenz und Einheit stehen in `channelsList`.
+- **Events:** eine Tabelle pro Event mit `ts` und `value`, nur bei Änderungen. Liste in `eventsList`.
+- **metadata:** Strecke, Layout, Auto, Klasse, Sessiontyp, Wetter, komplettes Setup als JSON.
+- Runden über das Event `Lap`, offizielle Zeit über `Lap Time` am Rundenende. `Lap Time = 0` heißt: Runde nicht gewertet.
+- Position als Pseudo-GPS (`GPS Latitude/Longitude`), reicht für die Streckenkarte.
+
+`npm run inspect -- <datei>` listet Tabellen, Spalten und Beispielzeilen einer Datei auf.
+
+## Was wo liegt
 
 | Teil | Datei |
 | --- | --- |
-| Runden aus einem Messstrom schneiden, Bestzeit finden | `src/lib/telemetry/laps.ts` |
-| Runden auf ein Distanz-Raster bringen, Delta berechnen | `src/lib/telemetry/compare.ts` |
-| Strecken-Outline aus einer Runde bauen, in SVG einpassen | `src/lib/track/outline.ts` |
-| Karte + Vergleichsgraph mit synchronem Hover | `src/components/lap-analysis.tsx` |
-| Datenbankschema Phase 1 (Strecken, Autos, Sessions, Runden, Traces) | `src/db/schema.ts`, `drizzle/` |
-| Bericht über den Inhalt einer LMU-Telemetriedatei | `scripts/inspect-duckdb.mts` |
-| Demo-Strecke und zwei Demo-Runden | `src/lib/demo.ts` |
-
-## Nächster Schritt: eine echte Datei ansehen
-
-Die Struktur der `.duckdb`-Dateien von LMU ist nicht öffentlich dokumentiert. Bevor der Import geschrieben wird, braucht es einen Blick in eine echte Datei.
-
-1. In LMU unter Einstellungen › Gameplay die automatische Telemetrie-Aufnahme anschalten (oder eine Taste für „Record Telemetry“ belegen).
-2. Ein paar saubere Runden fahren.
-3. Die Datei liegt unter `...\Le Mans Ultimate\UserData\Telemetry\`.
-4. Im Projekt ausführen:
-
-   ```bash
-   npm run inspect -- "C:\Pfad\zu\Le Mans Ultimate\UserData\Telemetry\<datei>.duckdb"
-   ```
-
-5. Das Ergebnis `inspect-<datei>.md` committen. Daraus entsteht der Import.
-
-Telemetrie-Dateien selbst werden nie committet (`.gitignore`).
+| LMU-Datei lesen und importieren | `scripts/import-lmu.mts` |
+| Kanäle/Events in Runden umrechnen | `src/lib/lmu/convert.ts` |
+| Runden aufs Distanz-Raster bringen, Delta | `src/lib/telemetry/compare.ts` |
+| Strecken-Outline, SVG-Projektion | `src/lib/track/outline.ts` |
+| Rundentabelle mit Referenz/Vergleich | `src/components/session-view.tsx` |
+| Karte + Vergleichsgraph | `src/components/lap-analysis.tsx` |
+| Datenbankschema (noch nicht benutzt) | `src/db/schema.ts`, `drizzle/` |
+| Demo mit erfundenen Daten (`/demo`) | `src/lib/demo.ts` |
 
 ## Datenbank
 

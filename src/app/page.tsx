@@ -1,51 +1,66 @@
-import { LapAnalysis } from "@/components/lap-analysis";
-import { demoSamples } from "@/lib/demo";
-import { deltaTrace, resampleByDistance } from "@/lib/telemetry/compare";
-import { fastestLap, formatLapTime, splitLaps } from "@/lib/telemetry/laps";
-import { buildOutline } from "@/lib/track/outline";
+import Link from "next/link";
+import { sessions } from "@/data/sessions";
+import { bestLap } from "@/lib/lmu/session";
+import { formatDate, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
+import { formatLapTime } from "@/lib/telemetry/laps";
 
-const STEP_M = 5;
-
-// Solange der Import echter LMU-Dateien noch nicht steht, läuft die Seite mit Demo-Daten.
 export default function Home() {
-  const laps = splitLaps(demoSamples());
-  const best = fastestLap(laps)!;
-  const other = laps.find((l) => l.complete && l !== best)!;
-
-  const reference = resampleByDistance(best.samples, STEP_M);
-  const compare = resampleByDistance(other.samples, STEP_M);
-  const delta = deltaTrace(reference, compare);
-  const outline = buildOutline(best.samples, 10);
+  const list = sessions.toSorted((a, b) => b.recordedAt.localeCompare(a.recordedAt));
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs tracking-[0.2em] text-accent uppercase">lunaracing</p>
-          <h1 className="mt-1 text-2xl font-semibold">Demo-Strecke · GT3</h1>
-          <p className="mt-1 text-sm text-muted">
-            Erfundene Daten, bis der Import echter LMU-Dateien steht.
-          </p>
-        </div>
-        <ul className="flex gap-3 text-sm">
-          {laps.map((l) => (
-            <li key={l.lap} className="rounded-lg border border-line bg-panel px-3 py-2">
-              <span className="text-muted">Runde {l.lap}</span>{" "}
-              <span className="font-mono tabular-nums">{formatLapTime(l.timeMs)}</span>
-              {l === best && <span className="ml-2 text-xs text-accent">Bestzeit</span>}
-            </li>
-          ))}
-        </ul>
+      <header className="mb-8">
+        <p className="text-xs tracking-[0.2em] text-accent uppercase">lunaracing</p>
+        <h1 className="mt-1 text-2xl font-semibold">Sessions</h1>
+        <p className="mt-1 text-sm text-muted">
+          Importiert mit <code className="font-mono text-fg">npm run import</code> aus dem Telemetry-Ordner von LMU.
+        </p>
       </header>
 
-      <LapAnalysis
-        outline={outline}
-        reference={reference}
-        compare={compare}
-        delta={delta}
-        stepM={STEP_M}
-        labels={{ reference: `Runde ${best.lap}`, compare: `Runde ${other.lap}` }}
-      />
+      {list.length === 0 ? (
+        <p className="rounded-xl border border-line bg-panel p-6 text-sm text-muted">
+          Noch keine Session importiert. Bis dahin gibt es die{" "}
+          <Link href="/demo" className="text-accent underline-offset-4 hover:underline">
+            Demo mit erfundenen Daten
+          </Link>
+          .
+        </p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {list.map((s) => {
+            const best = bestLap(s);
+            return (
+              <li key={s.id}>
+                <Link
+                  href={`/sessions/${s.id}`}
+                  className="block rounded-xl border border-line bg-panel p-4 transition hover:border-accent/60"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h2 className="font-semibold">{shortTrack(s.track)}</h2>
+                    <span className="text-xs text-muted">{formatDate(s.recordedAt)}</span>
+                  </div>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {shortLayout(s.track, s.layout)} · {s.car} · {s.carClass} · {sessionTypeDe(s.sessionType)}
+                  </p>
+                  <div className="mt-3 flex gap-4 text-sm">
+                    <span>
+                      <span className="text-muted">Bestzeit </span>
+                      <span className="font-mono tabular-nums">{best ? formatLapTime(best.timeMs) : "–"}</span>
+                    </span>
+                    <span className="text-muted">{s.laps.length} Runden</span>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <p className="mt-8 text-xs text-muted">
+        <Link href="/demo" className="hover:text-fg">
+          Demo ansehen
+        </Link>
+      </p>
     </main>
   );
 }

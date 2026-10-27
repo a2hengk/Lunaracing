@@ -10,7 +10,8 @@
     "test": "vitest run",
     "inspect": "tsx scripts/inspect-duckdb.mts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "import": "tsx scripts/import-lmu.mts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

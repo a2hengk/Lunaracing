@@ -1,0 +1,64 @@
+import type { Sample } from "../telemetry/types";
+
+/**
+ * Eine importierte Session, so wie sie als JSON gespeichert wird.
+ * Die Messwerte stehen spaltenweise drin (ein Array pro Kanal), das hält die Datei klein.
+ */
+export type SessionFile = {
+  id: string;
+  track: string;
+  layout: string;
+  car: string;
+  carClass: string;
+  sessionType: string;
+  /** ISO-Zeitpunkt der Aufnahme (UTC) */
+  recordedAt: string;
+  weather: { ambientC?: number; trackC?: number; conditions?: string };
+  /** Länge der Strecke laut Lap Dist, in Metern */
+  lengthM: number;
+  sampleHz: number;
+  laps: StoredLap[];
+};
+
+export type StoredLap = {
+  /** Rundenzähler laut LMU. 0 ist die Out-Lap aus der Box. */
+  lap: number;
+  timeMs: number;
+  /** S1, S2, S3 in Millisekunden */
+  sectorsMs: [number, number, number];
+  /** false, wenn LMU die Runde nicht gewertet hat (z. B. Track Limits) */
+  valid: boolean;
+  /** spaltenweise Messwerte, alle gleich lang */
+  data: {
+    t: number[];
+    d: number[];
+    speed: number[];
+    throttle: number[];
+    brake: number[];
+    steering: number[];
+    gear: number[];
+    x: number[];
+    z: number[];
+  };
+};
+
+/** Spaltenweise gespeicherte Runde zurück in Messpunkte. */
+export function lapSamples(lap: StoredLap): Sample[] {
+  const { t, d, speed, throttle, brake, steering, gear, x, z } = lap.data;
+  return t.map((time, i) => ({
+    t: time,
+    lap: lap.lap,
+    lapDist: d.at(i)!,
+    speed: speed.at(i)!,
+    throttle: throttle.at(i)!,
+    brake: brake.at(i)!,
+    steering: steering.at(i)!,
+    gear: gear.at(i)!,
+    x: x.at(i)!,
+    z: z.at(i)!,
+  }));
+}
+
+export function bestLap(session: SessionFile): StoredLap | undefined {
+  return session.laps.filter((l) => l.valid).toSorted((a, b) => a.timeMs - b.timeMs)[0];
+}
