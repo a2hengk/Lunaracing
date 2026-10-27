@@ -17,17 +17,15 @@ type Props = {
   labels: { reference: string; compare: string };
 };
 
-const CHART_W = 1000;
-const SPEED_H = 180;
-const DELTA_TOP = 206;
-const DELTA_H = 90;
+type Range = { from: number; to: number };
 
 export function LapAnalysis({ outline, reference, compare, delta, stepM, labels }: Props) {
   const [mode, setMode] = useState<Mode>("delta");
   const [hover, setHover] = useState<number | null>(null);
+  const [range, setRange] = useState<Range | null>(null);
 
   const length = reference.at(-1)?.dist ?? 1;
-  const at = <T,>(list: T[], d: number) => atDistance(list, d, stepM);
+  const view = range ?? { from: 0, to: length };
 
   const proj = useMemo(() => fitToBox(outline, 560, 440), [outline]);
 
@@ -54,30 +52,14 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
         else color = inputColor(atDistance(compare, mid, stepM));
         const [x1, y1] = proj.project(p);
         const [x2, y2] = proj.project(q);
-        return { key: p.d, x1, y1, x2, y2, color };
+        return { key: p.d, mid, x1, y1, x2, y2, color };
       }),
     [outline, mode, proj, lossRate, compare, delta.length, stepM],
   );
 
-  const maxSpeed = Math.max(...reference.map((p) => p.speed), ...compare.map((p) => p.speed));
-  const maxDelta = Math.max(0.05, ...delta.map((p) => Math.abs(p.delta)));
-  const X = (d: number) => (d / length) * CHART_W;
-  const Ys = (v: number) => SPEED_H - (v / maxSpeed) * (SPEED_H - 10);
-  const Yd = (v: number) => DELTA_TOP + DELTA_H / 2 - (v / maxDelta) * (DELTA_H / 2);
-  const line = (pts: DistPoint[]) => pts.map((p) => `${X(p.dist).toFixed(1)},${Ys(p.speed).toFixed(1)}`).join(" ");
-
   const marker = hover !== null ? pointAtDistance(outline, hover) : undefined;
-  const hoverRef = hover !== null ? at(reference, hover) : undefined;
-  const hoverCmp = hover !== null ? at(compare, hover) : undefined;
-  const hoverDelta = hover !== null ? at(delta, hover) : undefined;
 
-  const onChartMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    const box = e.currentTarget.getBoundingClientRect();
-    const f = (e.clientX - box.left) / box.width;
-    setHover(Math.min(length, Math.max(0, f * length)));
-  };
-
-  const onMapMove = (e: React.PointerEvent<SVGSVGElement>) => {
+  const nearestOnMap = (e: React.PointerEvent<SVGSVGElement> | React.MouseEvent<SVGSVGElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
     const sx = ((e.clientX - box.left) / box.width) * proj.width;
     const sy = ((e.clientY - box.top) / box.height) * proj.height;
@@ -91,11 +73,15 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
         best = p;
       }
     }
-    setHover(bestDist < 900 ? best.d : null);
+    return bestDist < 900 ? best.d : null;
   };
 
+  // Klick auf die Karte: auf die Stelle zoomen, mit Anlauf davor für die Bremszone
+  const zoomTo = (d: number) =>
+    setRange({ from: Math.max(0, d - 300), to: Math.min(length, d + 200) });
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <section className="rounded-xl border border-line bg-panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Strecke</h2>
@@ -119,14 +105,28 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
         </div>
         <svg
           viewBox={`0 0 ${proj.width} ${proj.height}`}
-          className="w-full touch-none"
-          onPointerMove={onMapMove}
+          className="w-full cursor-zoom-in touch-none"
+          onPointerMove={(e) => setHover(nearestOnMap(e))}
           onPointerLeave={() => setHover(null)}
+          onClick={(e) => {
+            const d = nearestOnMap(e);
+            if (d !== null) zoomTo(d);
+          }}
           role="img"
           aria-label="Streckenkarte"
         >
           {segments.map((s) => (
-            <line key={s.key} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={s.color} strokeWidth={5} strokeLinecap="round" />
+            <line
+              key={s.key}
+              x1={s.x1}
+              y1={s.y1}
+              x2={s.x2}
+              y2={s.y2}
+              stroke={s.color}
+              strokeWidth={5}
+              strokeLinecap="round"
+              opacity={range && (s.mid < view.from || s.mid > view.to) ? 0.2 : 1}
+            />
           ))}
           <StartFinish outline={outline} project={proj.project} />
           {marker && (
@@ -134,55 +134,223 @@ export function LapAnalysis({ outline, reference, compare, delta, stepM, labels 
           )}
         </svg>
         <Legend mode={mode} />
+        <p className="mt-2 text-[11px] text-muted">Klick auf die Strecke zoomt die Telemetrie auf diese Stelle.</p>
       </section>
 
-      <section className="rounded-xl border border-line bg-panel p-4">
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Rundenvergleich</h2>
-          <div className="flex gap-4 text-xs">
-            <span className="flex items-center gap-1.5"><i className="h-0.5 w-4 bg-ref" />{labels.reference}</span>
-            <span className="flex items-center gap-1.5"><i className="h-0.5 w-4 bg-accent" />{labels.compare}</span>
-          </div>
+      <TelemetryChart
+        reference={reference}
+        compare={compare}
+        delta={delta}
+        stepM={stepM}
+        labels={labels}
+        length={length}
+        view={view}
+        zoomed={range !== null}
+        onZoom={setRange}
+        hover={hover}
+        onHover={setHover}
+      />
+    </div>
+  );
+}
+
+const W = 1000;
+// Spuren übereinander, in viewBox-Einheiten: [oben, Höhe]
+const LANES = {
+  speed: [0, 150],
+  throttle: [166, 62],
+  brake: [244, 62],
+  delta: [322, 62],
+} as const;
+const H = 384;
+
+function TelemetryChart({
+  reference,
+  compare,
+  delta,
+  stepM,
+  labels,
+  length,
+  view,
+  zoomed,
+  onZoom,
+  hover,
+  onHover,
+}: {
+  reference: DistPoint[];
+  compare: DistPoint[];
+  delta: DeltaPoint[];
+  stepM: number;
+  labels: { reference: string; compare: string };
+  length: number;
+  view: Range;
+  zoomed: boolean;
+  onZoom: (r: Range | null) => void;
+  hover: number | null;
+  onHover: (d: number | null) => void;
+}) {
+  const [drag, setDrag] = useState<{ start: number; end: number } | null>(null);
+
+  const inView = <T extends { dist: number }>(list: T[]) =>
+    list.filter((p) => p.dist >= view.from - stepM && p.dist <= view.to + stepM);
+  const ref = inView(reference);
+  const cmp = inView(compare);
+  const del = inView(delta);
+
+  const span = view.to - view.from || 1;
+  const X = (d: number) => ((d - view.from) / span) * W;
+
+  // Speed und Delta passen sich beim Zoomen an den sichtbaren Bereich an
+  const speeds = [...ref, ...cmp].map((p) => p.speed);
+  const sMin = zoomed ? Math.max(0, Math.min(...speeds) - 10) : 0;
+  const sMax = Math.max(...speeds) + 5;
+  const dVals = del.map((p) => p.delta);
+  const dMin = Math.min(0, ...dVals);
+  const dMax = Math.max(0.05, ...dVals);
+
+  const lane = (key: keyof typeof LANES, f: number) => {
+    const [top, h] = LANES[key];
+    return top + h - Math.max(0, Math.min(1, f)) * h;
+  };
+  const path = <T extends { dist: number }>(pts: T[], y: (p: T) => number) =>
+    pts.map((p) => `${X(p.dist).toFixed(1)},${y(p).toFixed(1)}`).join(" ");
+  const area = (pts: DistPoint[], key: "throttle" | "brake") => {
+    const [top, h] = LANES[key];
+    if (pts.length === 0) return "";
+    return `${X(pts.at(0)!.dist)},${top + h} ${path(pts, (p: DistPoint) => lane(key, p[key]))} ${X(pts.at(-1)!.dist)},${top + h}`;
+  };
+
+  const toDist = (e: React.PointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const f = (e.clientX - box.left) / box.width;
+    return Math.min(length, Math.max(0, view.from + f * span));
+  };
+
+  const hRef = hover !== null ? atDistance(reference, hover, stepM) : undefined;
+  const hCmp = hover !== null ? atDistance(compare, hover, stepM) : undefined;
+  const hDelta = hover !== null ? atDistance(delta, hover, stepM) : undefined;
+  const pct = (v: number | undefined) => (v === undefined ? "–" : `${Math.round(v * 100)} %`);
+
+  const laneLabel = (key: keyof typeof LANES, text: string) => {
+    const [top, h] = LANES[key];
+    return (
+      <span className="absolute left-0 text-[11px] text-muted" style={{ top: `${((top + h / 2) / H) * 100}%`, transform: "translateY(-50%)" }}>
+        {text}
+      </span>
+    );
+  };
+
+  return (
+    <section className="rounded-xl border border-line bg-panel p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Telemetrie</h2>
+        <div className="flex items-center gap-4 text-xs">
+          <span className="flex items-center gap-1.5"><i className="h-0.5 w-4 bg-ref" />{labels.reference}</span>
+          <span className="flex items-center gap-1.5"><i className="h-0.5 w-4 bg-accent" />{labels.compare}</span>
+          {zoomed && (
+            <button onClick={() => onZoom(null)} className="rounded-md bg-bg px-2.5 py-1 text-muted transition hover:text-fg">
+              Ganze Runde
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <div className="relative w-12 shrink-0">
+          {laneLabel("speed", "km/h")}
+          {laneLabel("throttle", "Gas")}
+          {laneLabel("brake", "Bremse")}
+          {laneLabel("delta", "Delta")}
         </div>
         <svg
-          viewBox={`0 0 ${CHART_W} ${DELTA_TOP + DELTA_H}`}
-          className="h-72 w-full touch-none sm:h-96"
+          viewBox={`0 0 ${W} ${H}`}
+          className="h-[420px] w-full cursor-crosshair touch-none select-none"
           preserveAspectRatio="none"
-          onPointerMove={onChartMove}
-          onPointerLeave={() => setHover(null)}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const d = toDist(e);
+            setDrag({ start: d, end: d });
+          }}
+          onPointerMove={(e) => {
+            const d = toDist(e);
+            onHover(d);
+            if (drag) setDrag({ ...drag, end: d });
+          }}
+          onPointerUp={() => {
+            if (drag && Math.abs(drag.end - drag.start) > 20) {
+              onZoom({ from: Math.min(drag.start, drag.end), to: Math.max(drag.start, drag.end) });
+            }
+            setDrag(null);
+          }}
+          onPointerLeave={() => !drag && onHover(null)}
           role="img"
-          aria-label="Speed und Delta über die Streckendistanz"
+          aria-label="Speed, Gas, Bremse und Delta über die Streckendistanz"
         >
-          <polyline points={line(reference)} fill="none" stroke="var(--color-ref)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-          <polyline points={line(compare)} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-          <line x1={0} x2={CHART_W} y1={Yd(0)} y2={Yd(0)} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
-          <polyline
-            points={delta.map((p) => `${X(p.dist).toFixed(1)},${Yd(p.delta).toFixed(1)}`).join(" ")}
-            fill="none"
-            stroke="var(--color-loss)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-          />
-          {hover !== null && (
-            <line x1={X(hover)} x2={X(hover)} y1={0} y2={DELTA_TOP + DELTA_H} stroke="var(--color-fg)" strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
+          {(["throttle", "brake", "delta"] as const).map((k) => (
+            <rect key={k} x={0} y={LANES[k][0]} width={W} height={LANES[k][1]} fill="var(--color-bg)" opacity={0.5} />
+          ))}
+
+          <polyline points={path(ref, (p: DistPoint) => lane("speed", (p.speed - sMin) / (sMax - sMin)))} fill="none" stroke="var(--color-ref)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <polyline points={path(cmp, (p: DistPoint) => lane("speed", (p.speed - sMin) / (sMax - sMin)))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+          <polygon points={area(cmp, "throttle")} fill="var(--color-good)" opacity={0.15} />
+          <polyline points={path(ref, (p: DistPoint) => lane("throttle", p.throttle))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+          <polyline points={path(cmp, (p: DistPoint) => lane("throttle", p.throttle))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+          <polygon points={area(cmp, "brake")} fill="var(--color-loss)" opacity={0.15} />
+          <polyline points={path(ref, (p: DistPoint) => lane("brake", p.brake))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+          <polyline points={path(cmp, (p: DistPoint) => lane("brake", p.brake))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+          <line x1={0} x2={W} y1={lane("delta", (0 - dMin) / (dMax - dMin))} y2={lane("delta", (0 - dMin) / (dMax - dMin))} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
+          <polyline points={path(del, (p: DeltaPoint) => lane("delta", (p.delta - dMin) / (dMax - dMin)))} fill="none" stroke="var(--color-loss)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+          {drag && (
+            <rect x={Math.min(X(drag.start), X(drag.end))} y={0} width={Math.abs(X(drag.end) - X(drag.start))} height={H} fill="var(--color-accent)" opacity={0.12} />
+          )}
+          {hover !== null && hover >= view.from && hover <= view.to && (
+            <line x1={X(hover)} x2={X(hover)} y1={0} y2={H} stroke="var(--color-fg)" strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
           )}
         </svg>
-        <div className="mt-1 flex justify-between text-[11px] text-muted">
-          <span>Speed (km/h) oben, Delta (s) unten</span>
-          <span>{Math.round(length)} m</span>
-        </div>
+      </div>
+      <div className="mt-1 flex justify-between pl-14 text-[11px] text-muted">
+        <span>{Math.round(view.from)} m</span>
+        <span>{zoomed ? "Ziehen zum weiteren Zoomen" : "Ziehen zum Zoomen"}</span>
+        <span>{Math.round(view.to)} m</span>
+      </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-          <Stat label="Distanz" value={hover !== null ? `${Math.round(hover)} m` : "–"} />
-          <Stat label={labels.reference} value={hoverRef ? `${hoverRef.speed.toFixed(0)} km/h` : "–"} />
-          <Stat label={labels.compare} value={hoverCmp ? `${hoverCmp.speed.toFixed(0)} km/h` : "–"} />
-          <Stat
-            label="Delta"
-            value={hoverDelta ? `${hoverDelta.delta >= 0 ? "+" : ""}${hoverDelta.delta.toFixed(3)} s` : `+${delta.at(-1)?.delta.toFixed(3)} s`}
-          />
-        </dl>
-      </section>
-    </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-[11px] text-muted">
+            <tr>
+              <th className="py-1 pr-3 font-normal">{hover !== null ? `bei ${Math.round(hover)} m` : "Maus über den Graph"}</th>
+              <th className="py-1 pr-3 font-normal">Speed</th>
+              <th className="py-1 pr-3 font-normal">Gas</th>
+              <th className="py-1 pr-3 font-normal">Bremse</th>
+              <th className="py-1 font-normal">Delta</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            <tr>
+              <td className="py-1 pr-3 font-sans text-ref">{labels.reference}</td>
+              <td className="py-1 pr-3">{hRef ? `${hRef.speed.toFixed(0)} km/h` : "–"}</td>
+              <td className="py-1 pr-3">{pct(hRef?.throttle)}</td>
+              <td className="py-1 pr-3">{pct(hRef?.brake)}</td>
+              <td className="py-1" rowSpan={2}>
+                {hDelta
+                  ? `${hDelta.delta >= 0 ? "+" : ""}${hDelta.delta.toFixed(3)} s`
+                  : `${(delta.at(-1)?.delta ?? 0) >= 0 ? "+" : ""}${delta.at(-1)?.delta.toFixed(3)} s`}
+              </td>
+            </tr>
+            <tr>
+              <td className="py-1 pr-3 font-sans text-accent">{labels.compare}</td>
+              <td className="py-1 pr-3">{hCmp ? `${hCmp.speed.toFixed(0)} km/h` : "–"}</td>
+              <td className="py-1 pr-3">{pct(hCmp?.throttle)}</td>
+              <td className="py-1 pr-3">{pct(hCmp?.brake)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -201,15 +369,6 @@ function StartFinish({ outline, project }: { outline: OutlinePoint[]; project: (
   const nx = (-(y2 - y1) / len) * 10;
   const ny = ((x2 - x1) / len) * 10;
   return <line x1={x1 - nx} y1={y1 - ny} x2={x1 + nx} y2={y1 + ny} stroke="var(--color-fg)" strokeWidth={3} />;
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-bg px-3 py-2">
-      <dt className="text-[11px] text-muted">{label}</dt>
-      <dd className="font-mono tabular-nums">{value}</dd>
-    </div>
-  );
 }
 
 function Legend({ mode }: { mode: Mode }) {
