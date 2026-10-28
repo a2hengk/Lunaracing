@@ -8,13 +8,17 @@ Stand: Phase 2 fertig. Echte Sessions aus LMU lassen sich importieren und mit St
 
 ```bash
 npm install
-npx vercel link                                          # einmal, mit dem Vercel-Projekt verbinden
-npx vercel env pull .env.local --environment=production  # DATABASE_URL und BLOB_READ_WRITE_TOKEN holen
-npm run dev     # http://localhost:3000
+cp .env.example .env.local   # dann die drei Werte eintragen, siehe unten
+npm run dev                  # http://localhost:3000
 npm test
 ```
 
-`--environment=production` ist wichtig: Sonst kann `DATABASE_URL` auf einen Entwicklungs-Branch von Neon zeigen, und importierte Sessions tauchen auf der Live-Seite nicht auf.
+Die Werte für `.env.local` gibt es im Vercel-Dashboard des Projekts unter **Storage**:
+
+- `DATABASE_URL`, `DATABASE_URL_UNPOOLED`: Neon-Datenbank → Tab „.env.local“ → „Show secret“ (oder Neon Console → Connect, mit und ohne Connection Pooling)
+- `BLOB_READ_WRITE_TOKEN`: Blob Store → Tab „.env.local“ → „Show secret“
+
+`npx vercel env pull` hilft hier nicht: Geheime Production-Werte schreibt es nur als Platzhalter `"[SENSITIVE]"`. Import und Migration erkennen das und sagen Bescheid.
 
 ## Sessions importieren
 

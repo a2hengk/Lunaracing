@@ -32,7 +32,13 @@ const files = (await stat(arg)).isDirectory()
   ? (await readdir(arg)).filter((f) => f.endsWith(".duckdb")).map((f) => join(arg, f))
   : [arg];
 
-const db = connect();
+let db: ReturnType<typeof connect>;
+try {
+  db = connect();
+} catch (e) {
+  console.error(e instanceof Error ? e.message : e);
+  process.exit(1);
+}
 let imported = 0;
 
 for (const file of files.toSorted()) {
