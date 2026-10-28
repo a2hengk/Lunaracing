@@ -19,6 +19,10 @@ if (!url) {
   console.log("[migrate] Keine DATABASE_URL gesetzt, Migrationen übersprungen");
   process.exit(0);
 }
+if (url.includes("[SENSITIVE]")) {
+  console.error("[migrate] DATABASE_URL ist nur ein Platzhalter aus `vercel env pull`, echten Wert in .env.local eintragen");
+  process.exit(1);
+}
 
 const db = drizzle(url);
 await migrate(db, { migrationsFolder: "drizzle" });

@@ -11,10 +11,24 @@ import { lapToRow, sessionTypeToDb, TRACE_CHANNELS } from "../../src/lib/lmu/sto
 
 const { cars, lapTraces, laps, sessions, tracks } = schema;
 
+/** Liest eine Umgebungsvariable und erkennt Platzhalter aus `vercel env pull`. */
+function env(name: string, where: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} fehlt in .env.local. Den Wert gibt es unter ${where}.`);
+  if (value.includes("[SENSITIVE]")) {
+    throw new Error(
+      `${name} ist nur ein Platzhalter („[SENSITIVE]“). Vercel gibt geheime Production-Werte nicht per env pull raus. Den echten Wert gibt es unter ${where}.`,
+    );
+  }
+  return value;
+}
+
+const DB_WHERE = "Vercel → Storage → Neon-Datenbank → .env.local (oder Neon Console → Connect)";
+const BLOB_WHERE = "Vercel → Storage → Blob Store → .env.local";
+
 export function connect({ needBlob = true } = {}) {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL fehlt. `npx vercel env pull .env.local` ausführen oder .env anlegen.");
-  if (needBlob && !process.env.BLOB_READ_WRITE_TOKEN) throw new Error("BLOB_READ_WRITE_TOKEN fehlt (Vercel Blob).");
+  const url = env("DATABASE_URL", DB_WHERE);
+  if (needBlob) env("BLOB_READ_WRITE_TOKEN", BLOB_WHERE);
   return drizzle(url, { schema });
 }
 
