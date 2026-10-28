@@ -25,6 +25,10 @@ const EXTRA_CHANNELS = [
   "TC",
   "Path Lateral",
   "Track Edge",
+  "TyresTempLeft",
+  "TyresTempCentre",
+  "TyresTempRight",
+  "TyresPressure",
 ];
 const EVENTS = [
   "Lap",
@@ -38,6 +42,7 @@ const EVENTS = [
   "ABSLevel",
   "FuelMixtureMap",
   "Brake Bias Rear",
+  "In Pits",
 ];
 
 const arg = process.argv[2];

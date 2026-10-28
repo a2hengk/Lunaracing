@@ -4,8 +4,12 @@ import { useMemo, useState } from "react";
 import { CornerTable } from "@/components/corner-table";
 import { LapAnalysis, type Range } from "@/components/lap-analysis";
 import { LapStats } from "@/components/lap-stats";
+import { StintReport } from "@/components/stint-report";
+import { StrategyCalc } from "@/components/strategy-calc";
+import { splitStints } from "@/lib/analysis/stints";
 import { cornerStats, detectCorners } from "@/lib/analysis/corners";
 import { drivingStyle } from "@/lib/analysis/style";
+import { cornerName } from "@/data/tracks";
 import { formatSector } from "@/lib/format";
 import { bestLap, lapSamples, type SessionFile } from "@/lib/lmu/session";
 import { deltaTrace, resampleByDistance } from "@/lib/telemetry/compare";
@@ -35,7 +39,14 @@ export function SessionView({ session }: { session: SessionFile }) {
   const [activeCorner, setActiveCorner] = useState<number | null>(null);
 
   // Kurven einmal aus der Bestrunde, damit die Nummern für alle Vergleiche gleich bleiben
-  const corners = useMemo(() => detectCorners(byLap.get(best.lap)!, STEP_M), [byLap, best]);
+  const corners = useMemo(
+    () =>
+      detectCorners(byLap.get(best.lap)!, STEP_M).map((c) => ({
+        ...c,
+        name: cornerName(session.track, session.layout, c.apex),
+      })),
+    [byLap, best, session],
+  );
   const cornerRows = useMemo(
     () =>
       corners.map((c) => {
@@ -55,13 +66,28 @@ export function SessionView({ session }: { session: SessionFile }) {
   );
   const labels = { reference: `Runde ${refLap}`, compare: `Runde ${cmpLap}` };
 
+  const stints = useMemo(() => splitStints(session.laps), [session]);
+  // Startwerte für den Rechner: Durchschnitt aller Runden ohne Boxengasse
+  const raceBase = useMemo(() => {
+    const laps = session.laps.filter((l) => !l.pit);
+    const avg = (pick: (l: (typeof laps)[number]) => number | undefined) => {
+      const vals = laps.map(pick).filter((v): v is number => v !== undefined);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    };
+    return {
+      lapTimeS: avg((l) => l.timeMs) / 1000,
+      fuelPerLapL: avg((l) => l.usage?.fuelL),
+      vePerLapPct: avg((l) => l.usage?.vePct),
+    };
+  }, [session]);
+
   // Beste Sektorzeiten aus gewerteten Runden, für die Markierung in der Tabelle
   const bestSectors = [0, 1, 2].map((i) =>
     Math.min(...session.laps.filter((l) => l.valid).map((l) => l.sectorsMs.at(i)!).filter((v) => v > 0)),
   );
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
       <section className="overflow-x-auto rounded-xl border border-line bg-panel">
         <table className="w-full min-w-[560px] text-sm">
           <thead className="text-left text-xs text-muted">
@@ -135,6 +161,10 @@ export function SessionView({ session }: { session: SessionFile }) {
       />
 
       <LapStats laps={session.laps} styles={styles} />
+
+      <StintReport stints={stints} />
+
+      <StrategyCalc {...raceBase} />
     </div>
   );
 }

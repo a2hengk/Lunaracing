@@ -2,7 +2,7 @@
 
 Telemetrie-Tracker für Le Mans Ultimate. Runden aufnehmen, speichern und danach vergleichen: Delta, Speed, Brems- und Gaspunkte, direkt auf der Streckenkarte.
 
-Stand: Phase 2 angefangen. Echte Sessions aus LMU lassen sich importieren und mit Streckenkarte, Telemetrie (Speed, Gas, Bremse, Delta), Kurven-Analyse und Fahrstil-Kennzahlen ansehen. Die Datenbank ist noch nicht angebunden, importierte Sessions liegen als JSON in `src/data/sessions/`.
+Stand: Phase 2 fertig. Echte Sessions aus LMU lassen sich importieren und mit Streckenkarte, Telemetrie (Speed, Gas, Bremse, Delta), Kurven-Analyse, Fahrstil-Kennzahlen, Stint-Report und Sprit-/VE-Rechner ansehen. Die Datenbank ist noch nicht angebunden, importierte Sessions liegen als JSON in `src/data/sessions/`.
 
 ## Starten
 
@@ -49,6 +49,9 @@ LMU (1.2, Format-Version 1) schreibt pro Aufnahme eine DuckDB-Datei:
 | Rundentabelle mit Referenz/Vergleich | `src/components/session-view.tsx` |
 | Kurven erkennen, Kennzahlen pro Kurve | `src/lib/analysis/corners.ts`, `src/components/corner-table.tsx` |
 | Fahrstil pro Runde (Vollgas, Trail-Braking, Rollen, Lupfer) | `src/lib/analysis/style.ts`, `src/components/lap-stats.tsx` |
+| Kurvennamen pro Strecke (von Hand gepflegt) | `src/data/tracks.ts` |
+| Stints: Pace, Konstanz, Trend, Verbrauch, Reifen | `src/lib/analysis/stints.ts`, `src/components/stint-report.tsx` |
+| Sprit- und VE-Rechner fürs Rennen | `src/lib/analysis/strategy.ts`, `src/components/strategy-calc.tsx` |
 | Karte + Vergleichsgraph | `src/components/lap-analysis.tsx` |
 | Datenbankschema (noch nicht benutzt) | `src/db/schema.ts`, `drizzle/` |
 | Demo mit erfundenen Daten (`/demo`) | `src/lib/demo.ts` |
