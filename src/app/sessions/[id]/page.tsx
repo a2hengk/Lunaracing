@@ -2,12 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SessionView } from "@/components/session-view";
-import { sessions } from "@/data/sessions";
+import { getSession } from "@/lib/data";
 import { formatDate, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
-
-export function generateStaticParams() {
-  return sessions.map((s) => ({ id: s.id }));
-}
 
 type Params = PageProps<"/sessions/[id]">["params"];
 
@@ -28,7 +24,7 @@ export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
 
 async function SessionContent({ params }: { params: Params }) {
   const { id } = await params;
-  const session = sessions.find((s) => s.id === id);
+  const session = await getSession(id);
   if (!session) notFound();
 
   const w = session.weather;
