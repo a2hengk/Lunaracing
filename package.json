@@ -4,16 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/migrate.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "inspect": "tsx scripts/inspect-duckdb.mts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate.mjs",
     "import": "tsx scripts/import-lmu.mts"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.2",
     "drizzle-orm": "^0.45.4",
     "geist": "^1.8.2",
     "next": "16.4.3",

@@ -10,12 +10,13 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { StoredLap } from "@/lib/lmu/session";
 import type { OutlinePoint } from "@/lib/track/outline";
 
 /**
- * Phase 1: Strecken, Autos, Sessions, Runden und die Rohdaten pro Runde.
- * Rohdaten liegen als Datei im Blob-Speicher, hier steht nur der Verweis.
- * Kurven, Setups und Kennzahlen pro Kurve kommen in Phase 2/3 dazu.
+ * Strecken, Autos, Sessions und Runden mit ihren Kennzahlen. Die Messwerte pro Runde
+ * liegen als JSON-Datei im (öffentlichen) Blob-Speicher, hier steht nur der Verweis.
+ * Kurven, Fahrstil und Stints werden aus den Messwerten in der App berechnet.
  */
 
 export const tracks = pgTable(
@@ -43,6 +44,8 @@ export const sessionType = pgEnum("session_type", ["training", "quali", "rennen"
 
 export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** lesbare ID für die URL, aus dem Dateinamen der Aufnahme */
+  slug: text("slug").unique(),
   trackId: uuid("track_id")
     .notNull()
     .references(() => tracks.id),
@@ -51,11 +54,15 @@ export const sessions = pgTable("sessions", {
     .references(() => cars.id),
   type: sessionType("type").notNull().default("unbekannt"),
   startedAt: timestamp("started_at", { withTimezone: true }),
+  /** Sessiontyp, wie LMU ihn schreibt (Practice, Qualifying, Race) */
+  lmuType: text("lmu_type"),
   /** Dateiname der .duckdb-Datei */
   sourceFile: text("source_file").notNull(),
   /** Hash der Datei, damit derselbe Import nicht doppelt landet */
   sourceHash: text("source_hash").notNull().unique(),
-  weather: jsonb("weather").$type<Record<string, unknown>>(),
+  weather: jsonb("weather").$type<{ ambientC?: number; trackC?: number; conditions?: string }>(),
+  lengthM: real("length_m"),
+  sampleHz: integer("sample_hz"),
   importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -75,6 +82,11 @@ export const laps = pgTable(
     valid: boolean("valid").notNull().default(true),
     fuelUsed: real("fuel_used"),
     tyreCompound: text("tyre_compound"),
+    pit: boolean("pit").notNull().default(false),
+    usage: jsonb("usage").$type<StoredLap["usage"]>(),
+    aids: jsonb("aids").$type<StoredLap["aids"]>(),
+    tyres: jsonb("tyres").$type<StoredLap["tyres"]>(),
+    offTrack: jsonb("off_track").$type<StoredLap["offTrack"]>(),
   },
   (t) => [unique("laps_session_lap").on(t.sessionId, t.lapNumber)],
 );

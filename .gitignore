@@ -43,3 +43,4 @@ next-env.d.ts
 # telemetrie-dateien von LMU nie committen
 *.duckdb
 *.duckdb.wal
+!.env.example
