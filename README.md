@@ -38,6 +38,18 @@ Die Werte für `.env.local` gibt es im Vercel-Dashboard des Projekts unter **Sto
    npm run import -- --neu "C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\UserData\Telemetry"
    ```
 
+### Automatisch importieren (Watcher)
+
+Statt nach jeder Session `npm run import` zu tippen, kann der Watcher neben dem Spiel laufen:
+
+```bash
+npm run watch -- "C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\UserData\Telemetry"
+```
+
+Er holt beim Start alles nach, was noch nicht importiert ist, und importiert danach jede neue Aufnahme, sobald LMU sie fertig geschrieben hat (keine `.wal` mehr daneben und 15 s keine Änderung). Ohne Commit, ohne Deploy: die Session ist danach direkt auf der Seite.
+
+Damit er beim Hochfahren von Windows startet: eine `.cmd`-Datei mit `cd /d C:\Local_Setups\Lunaracing && npm run watch -- "<Telemetry-Ordner>"` in den Autostart-Ordner legen (`Win+R` → `shell:startup`).
+
 Die `.duckdb`-Dateien selbst landen nie im Blob oder im Repo, nur die daraus berechneten Runden. In den Dateien stehen auch Steam-ID und Setup.
 
 ## Aufbau der LMU-Dateien
