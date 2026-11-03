@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { listSessions } from "@/lib/data";
-import { formatDate, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
+import { formatDate, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
 import { formatLapTime } from "@/lib/telemetry/laps";
 
 export default function Home() {
@@ -55,7 +55,7 @@ async function SessionList() {
               <span className="text-xs text-muted">{formatDate(s.recordedAt)}</span>
             </div>
             <p className="mt-0.5 text-sm text-muted">
-              {shortLayout(s.track, s.layout)} · {s.car} · {s.carClass} · {sessionTypeDe(s.sessionType)}
+              {joinParts(shortLayout(s.track, s.layout), s.car, s.carClass, sessionTypeDe(s.sessionType))}
             </p>
             <div className="mt-3 flex gap-4 text-sm">
               <span>

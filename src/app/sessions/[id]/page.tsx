@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SessionView } from "@/components/session-view";
 import { getSession } from "@/lib/data";
-import { formatDate, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
+import { formatDate, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
 
 type Params = PageProps<"/sessions/[id]">["params"];
 
@@ -35,10 +35,14 @@ async function SessionContent({ params }: { params: Params }) {
           {shortTrack(session.track)} · {session.carClass}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          {shortLayout(session.track, session.layout)} · {session.car} · {sessionTypeDe(session.sessionType)} ·{" "}
-          {formatDate(session.recordedAt)}
-          {w.ambientC !== undefined && ` · Luft ${w.ambientC} °C`}
-          {w.trackC !== undefined && ` · Strecke ${w.trackC} °C`}
+          {joinParts(
+            shortLayout(session.track, session.layout),
+            session.car,
+            sessionTypeDe(session.sessionType),
+            formatDate(session.recordedAt),
+            w.ambientC !== undefined && `Luft ${w.ambientC} °C`,
+            w.trackC !== undefined && `Strecke ${w.trackC} °C`,
+          )}
         </p>
       </header>
       <SessionView session={session} />

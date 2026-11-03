@@ -1,6 +1,7 @@
 import "server-only";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
+import { connection } from "next/server";
 import { db } from "@/db";
 import { cars, lapTraces, laps, sessions, tracks } from "@/db/schema";
 import type { SessionFile } from "@/lib/lmu/session";
@@ -20,6 +21,9 @@ export type SessionListItem = {
 
 /** Alle Sessions, neueste zuerst. Nicht gecacht, damit neue Importe sofort auftauchen. */
 export async function listSessions(): Promise<SessionListItem[]> {
+  // Erst zur Anfragezeit abfragen, nie beim Build: sonst landet die Liste im statischen Teil
+  // und neue Importe tauchen erst nach dem nächsten Deploy auf.
+  await connection();
   const rows = await db
     .select({
       id: sessions.id,
