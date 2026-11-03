@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import type { DeltaPoint, DistPoint } from "@/lib/telemetry/compare";
-import { CLOSE_GAP_S as GAP_CLOSE, type Corner } from "@/lib/analysis/corners";
+import type { Corner } from "@/lib/analysis/corners";
+import { traffic, trafficText, type Traffic } from "@/lib/analysis/traffic";
 import { fitToBox, pointAtDistance, type OutlinePoint } from "@/lib/track/outline";
 
-type Mode = "delta" | "speed" | "inputs";
+type Mode = "delta" | "speed" | "inputs" | "gap";
 
 type Props = {
   outline: OutlinePoint[];
@@ -62,6 +63,11 @@ export function LapAnalysis({
     [delta],
   );
 
+  // Nur wenn wirklich mal ein Auto vor dir war: Im Training schreibt LMU durchgehend 0
+  const hasGap = compare.some((p) => (p.gap ?? 0) > 0) || reference.some((p) => (p.gap ?? 0) > 0);
+  // Wechsel auf eine Session ohne Abstandsdaten: zurück auf Delta
+  const shown: Mode = mode === "gap" && !hasGap ? "delta" : mode;
+
   const segments = useMemo(
     () =>
       outline.slice(0, -1).map((p, i) => {
@@ -69,14 +75,15 @@ export function LapAnalysis({
         const mid = (p.d + q.d) / 2;
         const k = Math.min(delta.length - 1, Math.round(mid / stepM));
         let color: string;
-        if (mode === "delta") color = deltaColor(lossRate.at(k) ?? 0);
-        else if (mode === "speed") color = speedColor(atDistance(compare, mid, stepM)?.speed ?? 0);
+        if (shown === "delta") color = deltaColor(lossRate.at(k) ?? 0);
+        else if (shown === "speed") color = speedColor(atDistance(compare, mid, stepM)?.speed ?? 0);
+        else if (shown === "gap") color = trafficColor(traffic(atDistance(compare, mid, stepM)));
         else color = inputColor(atDistance(compare, mid, stepM));
         const [x1, y1] = proj.project(p);
         const [x2, y2] = proj.project(q);
         return { key: p.d, mid, x1, y1, x2, y2, color };
       }),
-    [outline, mode, proj, lossRate, compare, delta.length, stepM],
+    [outline, shown, proj, lossRate, compare, delta.length, stepM],
   );
 
   const marker = hover !== null ? pointAtDistance(outline, hover) : undefined;
@@ -142,20 +149,21 @@ export function LapAnalysis({
   return (
     <div id="analyse" className="grid scroll-mt-6 grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <section className="rounded-xl border border-line bg-panel p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Strecke</h2>
-          <div className="flex gap-1 rounded-lg bg-bg p-1 text-xs">
+          <div className="flex flex-wrap gap-1 rounded-lg bg-bg p-1 text-xs">
             {(
               [
                 ["delta", "Delta"],
                 ["speed", "Speed"],
                 ["inputs", "Gas/Bremse"],
+                ...(hasGap ? ([["gap", "Vordermann"]] as const) : []),
               ] as const
             ).map(([m, label]) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`rounded-md px-2.5 py-1 transition ${mode === m ? "bg-accent/20 text-accent" : "text-muted hover:text-fg"}`}
+                className={`rounded-md px-2.5 py-1 transition ${shown === m ? "bg-accent/20 text-accent" : "text-muted hover:text-fg"}`}
               >
                 {label}
               </button>
@@ -215,7 +223,14 @@ export function LapAnalysis({
             <circle cx={proj.project(marker)[0]} cy={proj.project(marker)[1]} r={7} fill="var(--color-fg)" stroke="var(--color-bg)" strokeWidth={3} />
           )}
         </svg>
-        <Legend mode={mode} />
+        <Legend mode={shown} />
+        {shown === "gap" && (
+          <p className="mt-2 text-[11px] text-muted">
+            {hover !== null
+              ? `${labels.compare} bei ${Math.round(hover)} m: ${trafficText(atDistance(compare, hover, stepM))}`
+              : `Abstand von ${labels.compare} zum Auto vor dir. Rad an Rad = weniger als eine Wagenlänge (5 m), gerechnet aus Abstand und Speed.`}
+          </p>
+        )}
         {offTrack.length > 0 && (
           <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted">
             <i className="h-2 w-5 rounded-full" style={{ background: "hsl(30 95% 58% / 0.6)" }} />
@@ -249,14 +264,8 @@ const LANES = {
   throttle: [166, 62],
   brake: [244, 62],
   delta: [322, 62],
-  gap: [400, 62],
 } as const;
-const H_BASE = 384;
-const H_GAP = 462;
-/** Abstand zum Vordermann wird bis 3 s gezeichnet, darüber gilt man als frei */
-const GAP_MAX = 3;
-/** 0..1 für die Spur: dicht dran = hoch, frei oder kein Auto vor dir = unten */
-const gapLevel = (g: number | undefined) => (g === undefined || g <= 0 ? 0 : 1 - Math.min(g, GAP_MAX) / GAP_MAX);
+const H = 384;
 
 function TelemetryChart({
   reference,
@@ -324,10 +333,7 @@ function TelemetryChart({
   const hCmp = hover !== null ? atDistance(compare, hover, stepM) : undefined;
   const hDelta = hover !== null ? atDistance(delta, hover, stepM) : undefined;
   const pct = (v: number | undefined) => (v === undefined ? "–" : `${Math.round(v * 100)} %`);
-  const hasGap = reference.some((p) => p.gap !== undefined) || compare.some((p) => p.gap !== undefined);
-  const H = hasGap ? H_GAP : H_BASE;
-  const gapText = (p: DistPoint | undefined) =>
-    p?.gap === undefined ? "–" : p.gap <= 0 ? "frei" : `${p.gap.toLocaleString("de-DE", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} s`;
+  const hasGap = reference.some((p) => (p.gap ?? 0) > 0) || compare.some((p) => (p.gap ?? 0) > 0);
 
   const laneLabel = (key: keyof typeof LANES, text: string) => {
     const [top, h] = LANES[key];
@@ -359,11 +365,10 @@ function TelemetryChart({
           {laneLabel("throttle", "Gas")}
           {laneLabel("brake", "Bremse")}
           {laneLabel("delta", "Delta")}
-          {hasGap && laneLabel("gap", "Vordermann")}
         </div>
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className={`${hasGap ? "h-[500px]" : "h-[420px]"} w-full cursor-crosshair touch-none select-none`}
+          className={`h-[420px] w-full cursor-crosshair touch-none select-none`}
           preserveAspectRatio="none"
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -385,7 +390,7 @@ function TelemetryChart({
           role="img"
           aria-label="Speed, Gas, Bremse und Delta über die Streckendistanz"
         >
-          {(hasGap ? (["throttle", "brake", "delta", "gap"] as const) : (["throttle", "brake", "delta"] as const)).map((k) => (
+          {(["throttle", "brake", "delta"] as const).map((k) => (
             <rect key={k} x={0} y={LANES[k][0]} width={W} height={LANES[k][1]} fill="var(--color-bg)" opacity={0.5} />
           ))}
 
@@ -403,14 +408,6 @@ function TelemetryChart({
           <line x1={0} x2={W} y1={lane("delta", (0 - dMin) / (dMax - dMin))} y2={lane("delta", (0 - dMin) / (dMax - dMin))} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
           <polyline points={path(del, (p: DeltaPoint) => lane("delta", (p.delta - dMin) / (dMax - dMin)))} fill="none" stroke="var(--color-loss)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
 
-          {hasGap && (
-            <>
-              <line x1={0} x2={W} y1={lane("gap", gapLevel(GAP_CLOSE))} y2={lane("gap", gapLevel(GAP_CLOSE))} stroke="var(--color-line)" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-              <polyline points={path(ref, (p: DistPoint) => lane("gap", gapLevel(p.gap)))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
-              <polyline points={path(cmp, (p: DistPoint) => lane("gap", gapLevel(p.gap)))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-            </>
-          )}
-
           {drag && (
             <rect x={Math.min(X(drag.start), X(drag.end))} y={0} width={Math.abs(X(drag.end) - X(drag.start))} height={H} fill="var(--color-accent)" opacity={0.12} />
           )}
@@ -424,12 +421,6 @@ function TelemetryChart({
         <span>{zoomed ? "Ziehen zum weiteren Zoomen" : "Ziehen zum Zoomen"}</span>
         <span>{Math.round(view.to)} m</span>
       </div>
-      {hasGap && (
-        <p className="mt-1 pl-14 text-[11px] text-muted">
-          Vordermann: je höher, desto dichter dran. Über der gestrichelten Linie weniger als 1 s Abstand, also Windschatten
-          oder Verkehr. Unten heißt frei oder kein Auto vor dir.
-        </p>
-      )}
 
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-sm">
@@ -449,7 +440,7 @@ function TelemetryChart({
               <td className="py-1 pr-3">{hRef ? `${hRef.speed.toFixed(0)} km/h` : "–"}</td>
               <td className="py-1 pr-3">{pct(hRef?.throttle)}</td>
               <td className="py-1 pr-3">{pct(hRef?.brake)}</td>
-              {hasGap && <td className="py-1 pr-3">{gapText(hRef)}</td>}
+              {hasGap && <td className="py-1 pr-3">{trafficText(hRef)}</td>}
               <td className="py-1" rowSpan={2}>
                 {hDelta
                   ? `${hDelta.delta >= 0 ? "+" : ""}${hDelta.delta.toFixed(3)} s`
@@ -461,7 +452,7 @@ function TelemetryChart({
               <td className="py-1 pr-3">{hCmp ? `${hCmp.speed.toFixed(0)} km/h` : "–"}</td>
               <td className="py-1 pr-3">{pct(hCmp?.throttle)}</td>
               <td className="py-1 pr-3">{pct(hCmp?.brake)}</td>
-              {hasGap && <td className="py-1 pr-3">{gapText(hCmp)}</td>}
+              {hasGap && <td className="py-1 pr-3">{trafficText(hCmp)}</td>}
             </tr>
           </tbody>
         </table>
@@ -501,7 +492,14 @@ function Legend({ mode }: { mode: Mode }) {
             [speedColor(170), ""],
             [speedColor(260), "schnell"],
           ]
-        : [
+        : mode === "gap"
+          ? [
+              [trafficColor("alongside"), "Rad an Rad"],
+              [trafficColor("close"), "unter 1 s"],
+              [trafficColor("near"), "1–3 s"],
+              [trafficColor("free"), "frei"],
+            ]
+          : [
             [inputColor({ throttle: 1, brake: 0 }), "Vollgas"],
             [inputColor({ throttle: 0.3, brake: 0 }), "Teilgas / Rollen"],
             [inputColor({ throttle: 0, brake: 1 }), "Bremse"],
@@ -528,6 +526,13 @@ function deltaColor(rate: number) {
 function speedColor(kmh: number) {
   const f = Math.max(0, Math.min(1, (kmh - 60) / 220));
   return `hsl(${220 - f * 220} 80% 55%)`;
+}
+
+function trafficColor(t: Traffic | null) {
+  if (t === "alongside") return "hsl(320 90% 62%)";
+  if (t === "close") return "hsl(270 80% 66%)";
+  if (t === "near") return "hsl(265 35% 48%)";
+  return "hsl(215 12% 35%)";
 }
 
 function inputColor(p: { throttle: number; brake: number } | undefined) {
