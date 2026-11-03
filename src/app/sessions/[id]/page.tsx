@@ -11,7 +11,7 @@ type Params = PageProps<"/sessions/[id]">["params"];
 // sofort, und der Inhalt der Session kommt innerhalb der Suspense-Grenze dazu.
 export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-6 xl:px-8">
       <Link href="/" className="text-xs tracking-[0.2em] text-accent uppercase">
         lunaracing
       </Link>
