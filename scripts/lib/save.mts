@@ -34,6 +34,39 @@ export function connect({ needBlob = true } = {}) {
 
 export type Db = ReturnType<typeof connect>;
 
+/**
+ * Übersetzt einen Datenbankfehler in einen Satz, mit dem man etwas anfangen kann.
+ * Drizzle zeigt sonst nur die Abfrage, der eigentliche Grund steckt in `cause`.
+ */
+export function describeDbError(e: unknown): string {
+  const cause = (e as { cause?: unknown })?.cause ?? e;
+  const err = cause as { code?: string; message?: string };
+  const msg = err?.message ?? String(cause);
+  switch (err?.code) {
+    case "42P01":
+      return `Die Tabellen fehlen in dieser Datenbank (${msg}). Entweder zeigt DATABASE_URL auf einen anderen Neon-Branch als die Live-Seite, oder die Migrationen sind dort nicht gelaufen. Prüfen: In der Neon Console den Branch „main“/„production“ wählen und dessen Connection String nehmen.`;
+    case "42703":
+      return `Eine Spalte fehlt (${msg}). Die Datenbank hat einen älteren Stand. Lösung: npm run db:migrate`;
+    case "28P01":
+      return `Anmeldung abgelehnt (${msg}). Passwort oder Benutzer in DATABASE_URL stimmen nicht, den Connection String neu kopieren.`;
+    case "3D000":
+      return `Diese Datenbank gibt es nicht (${msg}). Der Datenbankname am Ende von DATABASE_URL stimmt nicht.`;
+    case "ENOTFOUND":
+    case "EAI_AGAIN":
+      return `Server nicht gefunden (${msg}). Der Host in DATABASE_URL ist falsch oder es gibt keine Internetverbindung.`;
+    case "ECONNREFUSED":
+    case "ETIMEDOUT":
+      return `Keine Verbindung zur Datenbank (${msg}).`;
+    default:
+      return msg;
+  }
+}
+
+/** Prüft vor dem Import einmal Verbindung und Schema, statt bei jeder Datei denselben Fehler zu melden. */
+export async function checkDb(db: Db) {
+  await db.select({ slug: sessions.slug }).from(sessions).limit(1);
+}
+
 export async function sessionExists(db: Db, slug: string, hash: string) {
   const bySlug = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.slug, slug)).limit(1);
   if (bySlug.length) return true;

@@ -18,7 +18,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { convertRecording } from "../src/lib/lmu/convert";
 import { readRecording } from "./lib/read-lmu.mjs";
-import { connect, saveSession, sessionExists } from "./lib/save.mjs";
+import { checkDb, connect, describeDbError, saveSession, sessionExists } from "./lib/save.mjs";
 
 config({ path: [".env.local", ".env"], quiet: true });
 
@@ -39,6 +39,13 @@ try {
   console.error(e instanceof Error ? e.message : e);
   process.exit(1);
 }
+try {
+  await checkDb(db);
+} catch (e) {
+  console.error(`Datenbank nicht nutzbar: ${describeDbError(e)}`);
+  await db.$client.end();
+  process.exit(1);
+}
 let imported = 0;
 
 for (const file of files.toSorted()) {
@@ -48,7 +55,7 @@ for (const file of files.toSorted()) {
     if (result.status === "imported") imported++;
     console.log(`${result.message}: ${name}`);
   } catch (e) {
-    console.error(`Fehler bei ${name}: ${e instanceof Error ? e.message : e}`);
+    console.error(`Fehler bei ${name}: ${describeDbError(e)}`);
   }
 }
 
