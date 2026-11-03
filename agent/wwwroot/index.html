@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>lunaracing live</title>
+<style>
+  :root {
+    --bg: #0b0d12; --panel: #131720; --line: #232a36; --fg: #e8ecf3; --muted: #8590a3;
+    --accent: #4fa8ff; --ref: #c9d1dc; --good: #2fd07a; --loss: #ff5a52; --warn: #f5b13d; --close: #b277ff; --side: #ff4fb4;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { padding: 12px max(12px, env(safe-area-inset-right)) 24px max(12px, env(safe-area-inset-left)); }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 12px; }
+  .brand { color: var(--accent); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
+  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--good); } .dot.warn { background: var(--warn); } .dot.err { background: var(--loss); }
+  .sub { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .wide { grid-column: 1 / -1; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+  h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .big { font-family: var(--mono); font-size: clamp(28px, 3.2vw, 40px); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .kv div { background: var(--bg); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+  .kv dt { color: var(--muted); font-size: 11px; } .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .drive { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
+  .gear { font-family: var(--mono); font-size: 72px; line-height: 1; min-width: 1ch; text-align: center; }
+  .bars { display: flex; gap: 8px; height: 80px; }
+  .bar { width: 14px; background: var(--bg); border-radius: 4px; position: relative; overflow: hidden; }
+  .bar i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 4px; }
+  .rpm { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .rpm i { display: block; height: 100%; background: var(--accent); }
+  .delta { font-family: var(--mono); font-size: clamp(24px, 2.6vw, 32px); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  @media (min-width: 900px) { .map { grid-column: span 2; } }
+  .tyres { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tyre { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+  .tyre .temps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin: 4px 0; }
+  .tyre .temps span { border-radius: 4px; text-align: center; font-family: var(--mono); font-size: 12px; padding: 2px 0; color: #0b0d12; }
+  .tyre small { color: var(--muted); font-size: 11px; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  tr.me td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  tr.near td:first-child { box-shadow: inset 3px 0 var(--close); }
+  .scroll { overflow-x: auto; }
+  canvas { width: 100%; height: 280px; display: block; }
+  .muted { color: var(--muted); } .good { color: var(--good); } .loss { color: var(--loss); } .warn { color: var(--warn); }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 11px; background: var(--bg); color: var(--muted); }
+  .pill.on { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); }
+  #msg { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  #msg:empty { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">lunaracing live</span>
+  <span class="status"><i id="conn" class="dot"></i><span id="connText">verbinde …</span></span>
+  <span id="session" class="sub"></span>
+</header>
+<p id="msg"></p>
+
+<div class="grid">
+  <section>
+    <h2>Fahren</h2>
+    <div class="drive">
+      <div class="gear" id="gear">–</div>
+      <div>
+        <div class="big" id="speed">0</div><span class="sub">km/h</span>
+        <div class="rpm"><i id="rpm" style="width:0"></i></div>
+        <div class="sub" style="margin-top:6px" id="aids"></div>
+      </div>
+      <div class="bars" title="Gas und Bremse">
+        <div class="bar"><i id="thr" style="background:var(--good);height:0"></i></div>
+        <div class="bar"><i id="brk" style="background:var(--loss);height:0"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Runde</h2>
+    <div class="row">
+      <div><div class="big" id="laptime">0:00.0</div><span class="sub" id="lapno"></span></div>
+      <div style="text-align:right"><div class="delta" id="delta">±0.00</div><span class="sub">zur Bestzeit</span></div>
+    </div>
+    <dl class="kv">
+      <div><dt>Platz</dt><dd id="place">–</dd></div>
+      <div><dt>Letzte</dt><dd id="last">–</dd></div>
+      <div><dt>Beste</dt><dd id="best">–</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Abstände</h2>
+    <div class="row">
+      <div><span class="sub">vor dir</span><div class="big" id="gapAhead">–</div></div>
+      <div style="text-align:right"><span class="sub">hinter dir</span><div class="big" id="gapBehind">–</div></div>
+    </div>
+    <p class="sub" style="margin:8px 0 0" id="gapPlace"></p>
+  </section>
+
+  <section>
+    <h2>Sprit & Energie</h2>
+    <dl class="kv" style="margin-top:0">
+      <div><dt>Sprit</dt><dd id="fuel">–</dd></div>
+      <div><dt>pro Runde</dt><dd id="fpl">–</dd></div>
+      <div><dt>reicht</dt><dd id="fleft">–</dd></div>
+      <div><dt>Virtual Energy</dt><dd id="ve">–</dd></div>
+      <div><dt>pro Runde</dt><dd id="vpl">–</dd></div>
+      <div><dt>reicht</dt><dd id="vleft">–</dd></div>
+    </dl>
+    <p class="sub" style="margin:8px 0 0" id="limit">Verbrauch ab der ersten ganzen Runde.</p>
+  </section>
+
+  <section>
+    <h2>Reifen & Bremsen</h2>
+    <div class="tyres" id="tyres"></div>
+  </section>
+
+  <section class="map">
+    <h2>Strecke</h2>
+    <canvas id="map" aria-label="Positionen aller Autos"></canvas>
+    <p class="sub" style="margin:6px 0 0">Die Strecke zeichnet sich in deiner ersten Runde selbst. Blau du, lila das Auto vor und hinter dir.</p>
+  </section>
+
+  <section class="wide">
+    <h2>Wertung</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>P</th><th>Fahrer</th><th>Klasse</th><th>Abstand</th><th>Vordermann</th><th>Letzte</th><th>Beste</th><th>Box</th></tr></thead>
+        <tbody id="standings"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const de = (v, d = 1) => v.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const lap = (s) => {
+  if (!s || s <= 0) return "–";
+  const m = Math.floor(s / 60);
+  return `${m}:${(s - m * 60).toFixed(3).padStart(6, "0")}`;
+};
+const clock = (s) => {
+  if (s == null) return "";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+};
+// Reifentemperatur: kalt blau, gut grün, heiß rot (GT3: grob 75–95 °C)
+const tempColor = (c) => {
+  if (c <= 0) return "#2a3140";
+  const f = Math.max(0, Math.min(1, (c - 55) / 55));
+  return `hsl(${220 - f * 220} 70% 62%)`;
+};
+
+// Streckenkarte aus den eigenen Positionen, ein Punkt alle 10 m
+let path = [], pathTrack = "", pathDone = false, lastD = -1;
+function addPath(track, d, x, z, length) {
+  if (track !== pathTrack) { path = []; pathTrack = track; pathDone = false; lastD = -1; }
+  if (pathDone || length <= 0) return;
+  if (lastD >= 0 && d < lastD - length / 2) { if (path.length > 50) pathDone = true; return; }
+  if (lastD < 0 || d - lastD >= 10) { path.push([x, z]); lastD = d; }
+}
+
+function drawMap(cars, me) {
+  const cv = $("map"), dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const pts = path.length > 10 ? path : cars.map((c) => [c.x, c.z]);
+  if (!pts.length) return;
+  const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const pad = 14, k = Math.min((w - 2 * pad) / (maxX - minX || 1), (h - 2 * pad) / (maxZ - minZ || 1));
+  const ox = (w - (maxX - minX) * k) / 2, oz = (h - (maxZ - minZ) * k) / 2;
+  const P = (x, z) => [ox + (x - minX) * k, oz + (maxZ - z) * k];
+  if (path.length > 10) {
+    g.strokeStyle = "#2a3140"; g.lineWidth = 6; g.lineJoin = g.lineCap = "round";
+    g.beginPath(); path.forEach(([x, z], i) => { const [a, b] = P(x, z); i ? g.lineTo(a, b) : g.moveTo(a, b); });
+    if (pathDone) g.closePath();
+    g.stroke();
+  }
+  const near = new Set(me ? [me.place - 1, me.place + 1] : []);
+  for (const c of [...cars].sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0))) {
+    const [a, b] = P(c.x, c.z);
+    g.beginPath(); g.arc(a, b, c.isPlayer ? 6 : near.has(c.place) ? 5 : 4, 0, Math.PI * 2);
+    g.fillStyle = c.isPlayer ? "#4fa8ff" : near.has(c.place) ? "#b277ff" : c.inPits ? "#3a4252" : "#8590a3";
+    g.fill(); g.lineWidth = 2; g.strokeStyle = "#131720"; g.stroke();
+    if (!c.isPlayer && near.has(c.place)) {
+      g.fillStyle = "#b277ff"; g.font = "11px system-ui"; g.fillText(`P${c.place}`, a + 8, b - 6);
+    }
+  }
+}
+
+function render(data) {
+  const f = data.frame || data;
+  const status = f.status;
+  $("conn").className = "dot " + (status === "ok" ? "ok" : status === "error" ? "err" : "warn");
+  $("connText").textContent = status === "ok" ? "live" : status === "menu" ? "im Menü" : status === "error" ? "Fehler" : "warte auf LMU";
+  $("msg").textContent = f.message || "";
+  const s = f.session;
+  if (s) {
+    $("session").textContent = [s.track, s.type, s.timeLeftS != null ? `noch ${clock(s.timeLeftS)}` : "", `Luft ${de(s.ambientC, 0)} °C`, `Strecke ${de(s.trackC, 0)} °C`, s.rain > 0.05 ? `Regen ${de(s.rain * 100, 0)} %` : ""].filter(Boolean).join(" · ");
+  }
+  const p = f.player, cars = f.cars || [];
+  const meCar = cars.find((c) => c.isPlayer);
+  if (p) {
+    $("gear").textContent = p.gear < 0 ? "R" : p.gear === 0 ? "N" : p.gear;
+    $("speed").textContent = Math.round(p.speedKmh);
+    $("rpm").style.width = `${p.maxRpm > 0 ? Math.min(100, (p.rpm / p.maxRpm) * 100) : 0}%`;
+    $("rpm").style.background = p.maxRpm > 0 && p.rpm / p.maxRpm > 0.95 ? "var(--loss)" : "var(--accent)";
+    $("thr").style.height = `${p.throttle * 100}%`;
+    $("brk").style.height = `${p.brake * 100}%`;
+    $("aids").innerHTML = `TC ${p.tc} <span class="pill ${p.tcActive ? "on" : ""}">TC</span> · ABS ${p.abs} <span class="pill ${p.absActive ? "on" : ""}">ABS</span> · Map ${p.motorMap} · BB ${de(p.brakeBiasFrontPct, 1)} %${p.limiter ? ' · <span class="pill on">Limiter</span>' : ""}`;
+    $("laptime").textContent = lap(p.lapTimeS).replace(/(\.\d)\d\d$/, "$1");
+    $("laptime").className = "big" + (p.lapInvalid ? " muted" : "");
+    $("lapno").textContent = `Runde ${p.lap}${p.lapInvalid ? " · ungültig" : ""}`;
+    const d = p.deltaBestS;
+    $("delta").textContent = `${d > 0 ? "+" : d < 0 ? "−" : "±"}${de(Math.abs(d), 2)}`;
+    $("delta").className = "delta " + (d > 0.02 ? "loss" : d < -0.02 ? "good" : "");
+    const gap = (v) => (v > 0 ? `${de(v, 1)} s` : "–");
+    $("gapAhead").textContent = gap(p.gapAheadS);
+    $("gapAhead").className = "big " + (p.gapAheadS > 0 && p.gapAheadS < 1 ? "warn" : "");
+    $("gapBehind").textContent = gap(p.gapBehindS);
+    $("gapBehind").className = "big " + (p.gapBehindS > 0 && p.gapBehindS < 1 ? "warn" : "");
+    $("gapPlace").textContent = `In der Wertung: ${gap(p.gapPlaceAheadS)} auf den Platz vor dir, ${gap(p.gapPlaceBehindS)} Vorsprung nach hinten.`;
+    $("fuel").textContent = `${de(p.fuelL, 1)} L`;
+    // VE kommt als Anteil 0..1
+    const ve = p.virtualEnergy <= 1.5 ? p.virtualEnergy * 100 : p.virtualEnergy;
+    $("ve").textContent = p.virtualEnergy > 0 ? `${de(ve, 1)} %` : "–";
+    const c = data.consumption;
+    if (c && c.lapsCounted > 0) {
+      $("fpl").textContent = c.fuelPerLap ? `${de(c.fuelPerLap, 2)} L` : "–";
+      $("fleft").textContent = c.lapsLeftFuel ? `${de(c.lapsLeftFuel, 1)} R` : "–";
+      const vpl = c.vePerLap ? (p.virtualEnergy <= 1.5 ? c.vePerLap * 100 : c.vePerLap) : null;
+      $("vpl").textContent = vpl ? `${de(vpl, 2)} %` : "–";
+      $("vleft").textContent = c.lapsLeftVe ? `${de(c.lapsLeftVe, 1)} R` : "–";
+      const lim = c.lapsLeftVe && c.lapsLeftFuel ? (c.lapsLeftVe < c.lapsLeftFuel ? "Die Energie (VE) ist knapper als der Sprit." : "Der Sprit ist knapper als die Energie (VE).") : "";
+      $("limit").textContent = `Schnitt der letzten ${c.lapsCounted} Runde${c.lapsCounted === 1 ? "" : "n"}. ${lim}`;
+    }
+    const names = ["VL", "VR", "HL", "HR"];
+    $("tyres").innerHTML = p.tyres.map((t, i) => `
+      <div class="tyre">
+        <div class="row"><b>${names[i]}</b><span class="mono" style="font-size:12px">${de(t.pressureKpa, 0)} kPa</span></div>
+        <div class="temps">${t.tempC.map((c) => `<span style="background:${tempColor(c)}">${c > 0 ? Math.round(c) : "–"}</span>`).join("")}</div>
+        <small>Zustand ${de(t.wear * 100, 0)} % · Bremse ${Math.round(t.brakeC)} °C${t.flat ? ' · <b class="loss">Platten</b>' : ""}</small>
+      </div>`).join("");
+  }
+  if (meCar && s) addPath(s.track, meCar.lapDist, meCar.x, meCar.z, s.trackLengthM);
+  $("place").textContent = meCar ? `P${meCar.place} / ${cars.length}` : "–";
+  $("last").textContent = meCar ? lap(meCar.lastLapS) : "–";
+  $("best").textContent = meCar ? lap(meCar.bestLapS) : "–";
+  drawMap(cars, meCar);
+  const near = meCar ? new Set([meCar.place - 1, meCar.place + 1]) : new Set();
+  $("standings").innerHTML = cars.map((c) => `
+    <tr class="${c.isPlayer ? "me" : near.has(c.place) ? "near" : ""}">
+      <td class="mono">${c.place}</td><td>${esc(c.driver)}</td><td class="muted">${esc(c.class)}</td>
+      <td class="mono">${c.place === 1 ? "" : c.lapsBehindLeader > 0 ? `+${c.lapsBehindLeader} R` : `+${de(c.behindLeaderS, 1)}`}</td>
+      <td class="mono">${c.place === 1 ? "" : c.lapsBehindNext > 0 ? `+${c.lapsBehindNext} R` : `+${de(c.behindNextS, 1)}`}</td>
+      <td class="mono">${lap(c.lastLapS)}</td><td class="mono">${lap(c.bestLapS)}</td>
+      <td>${c.inPits ? '<span class="pill on">Box</span>' : c.pitstops ? `<span class="muted">${c.pitstops}×</span>` : ""}</td>
+    </tr>`).join("");
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+
+// Verbindung mit automatischem Neuaufbau, gezeichnet wird höchstens einmal pro Bildschirm-Frame
+let pending = null;
+function connect() {
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => { $("connText").textContent = "verbunden"; };
+  ws.onmessage = (e) => {
+    const first = pending === null;
+    pending = JSON.parse(e.data);
+    if (first) requestAnimationFrame(() => { const d = pending; pending = null; render(d); });
+  };
+  ws.onclose = () => {
+    $("conn").className = "dot err";
+    $("connText").textContent = "Agent nicht erreichbar, neuer Versuch …";
+    setTimeout(connect, 2000);
+  };
+}
+connect();
+</script>
+</body>
+</html>

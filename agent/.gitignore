@@ -1,0 +1,4 @@
+bin/
+obj/
+# Header aus dem LMU-SDK dürfen laut Lizenz nicht weitergegeben werden
+*.hpp

@@ -90,3 +90,8 @@ LMU (1.2, Format-Version 1) schreibt pro Aufnahme eine DuckDB-Datei:
 - Schema ändern: `src/db/schema.ts` anpassen, `npm run db:generate`, Migration committen.
 - In Postgres stehen Strecken, Autos, Sessions und Runden mit Sektoren, Verbrauch, Fahrhilfen, Reifen und Track Limits. Die Messwerte pro Runde (Speed, Gas, Bremse, Lenkung, Gang, Position) liegen als JSON im Blob, der Verweis in `lap_traces`.
 - Eine importierte Session wird in der App dauerhaft gecacht (`getSession`), weil sie sich nicht mehr ändert.
+
+## Live während der Fahrt (Phase 3)
+
+Der Live-Agent in [`agent/`](agent/README.md) läuft auf dem Gaming-PC, liest LMUs Shared Memory und zeigt Delta, Abstände, Sprit, Energie, Reifen und alle Autos live auf dem Handy im WLAN. Starten mit `cd agent && dotnet run`.
+
