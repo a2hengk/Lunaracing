@@ -24,7 +24,8 @@ if (url.includes("[SENSITIVE]")) {
   process.exit(1);
 }
 
-const db = drizzle(url);
+// sslmode=require → verify-full: gleiches Verhalten, ohne Warnung von pg (siehe src/db/url.ts)
+const db = drizzle(url.replace(/([?&]sslmode=)(require|prefer|verify-ca)(?=&|$)/, "$1verify-full"));
 await migrate(db, { migrationsFolder: "drizzle" });
 console.log("[migrate] Datenbank ist auf dem neuesten Stand");
 await db.$client.end();

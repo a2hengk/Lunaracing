@@ -6,6 +6,7 @@ import { del, put } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../../src/db/schema";
+import { pgUrl } from "../../src/db/url";
 import type { SessionFile } from "../../src/lib/lmu/session";
 import { lapToRow, sessionTypeToDb, TRACE_CHANNELS } from "../../src/lib/lmu/store";
 
@@ -29,7 +30,7 @@ const BLOB_WHERE = "Vercel → Storage → Blob Store → .env.local";
 export function connect({ needBlob = true } = {}) {
   const url = env("DATABASE_URL", DB_WHERE);
   if (needBlob) env("BLOB_READ_WRITE_TOKEN", BLOB_WHERE);
-  return drizzle(url, { schema });
+  return drizzle(pgUrl(url), { schema });
 }
 
 export type Db = ReturnType<typeof connect>;
