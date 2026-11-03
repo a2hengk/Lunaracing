@@ -78,6 +78,15 @@ describe("cornerStats", () => {
     const free = lap1.map((p, i) => ({ ...p, gap: i % 4 === 0 ? 0.4 : 0 }));
     expect(cornerStats(free, c, 5).gapAhead).toBeNull();
   });
+
+  it("erkennt Rad an Rad aus Abstand und Speed", () => {
+    const c = corners.at(0)!;
+    // 0,05 s sind bei jedem Speed unter 360 km/h weniger als 5 m
+    const side = lap1.map((p) => ({ ...p, gap: 0.05 }));
+    expect(cornerStats(side, c, 5).alongsideM).toBeGreaterThan(0);
+    const behind = lap1.map((p) => ({ ...p, gap: 0.4 }));
+    expect(cornerStats(behind, c, 5).alongsideM).toBe(0);
+  });
 });
 
 describe("drivingStyle", () => {
@@ -108,5 +117,6 @@ describe("drivingStyle", () => {
   it("zählt den Anteil unter 1 s hinter einem Auto", () => {
     const lap = Array.from({ length: 10 }, (_, i) => ({ ...point(i, 1, 0), gap: i < 3 ? 0.6 : i < 5 ? 1.5 : 0 }));
     expect(drivingStyle(lap).closePct).toBeCloseTo(30);
+    expect(drivingStyle(lap).alongsideM).toBe(0);
   });
 });

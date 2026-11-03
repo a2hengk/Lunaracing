@@ -92,10 +92,15 @@ export type CornerStats = {
   time: number;
   /** durchschnittlicher Abstand zum Vordermann in der Kurve in s, null = frei oder unbekannt */
   gapAhead: number | null;
+  /** Meter in der Kurve, in denen ein Auto weniger als eine Wagenlänge vor dir war (Rad an Rad) */
+  alongsideM: number;
 };
 
 /** Unter diesem Abstand zum Vordermann gilt eine Kurve als „dicht dran“ (Verkehr/Windschatten) */
 export const CLOSE_GAP_S = 1;
+/** Unter diesem Abstand in Metern überlappen die Autos (eine GT3 ist rund 4,7 m lang) */
+export const OVERLAP_M = 5;
+const alongside = (p: DistPoint) => p.gap !== undefined && p.gap > 0 && (p.gap * p.speed) / 3.6 < OVERLAP_M;
 
 const BRAKE_ON = 0.05;
 const STEER_ON = 0.05;
@@ -158,6 +163,7 @@ export function cornerStats(lap: DistPoint[], c: Corner, stepM: number): CornerS
     coastM,
     time: (seg.at(-1)?.time ?? 0) - (seg.at(0)?.time ?? 0),
     gapAhead: avgGap(seg),
+    alongsideM: seg.filter(alongside).length * stepM,
   };
 }
 

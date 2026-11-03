@@ -43,12 +43,18 @@ export function StrategyCalc({
   });
 
   return (
-    <section className="rounded-xl border border-line bg-panel p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Sprit- und VE-Rechner</h2>
-        <span className="text-xs text-muted">Startwerte: Durchschnitt deiner Runden ohne Box</span>
-      </div>
+    <details className="group rounded-xl border border-line bg-panel p-4">
+      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-muted uppercase">
+          <span aria-hidden className="inline-block transition group-open:rotate-90">›</span>
+          Sprit- und VE-Rechner
+        </h2>
+        <span className="text-xs text-muted">
+          {de(lapTimeS, 1)} s · {de(fuelPerLapL, 2)} L · {de(vePerLapPct, 2)} % VE pro Runde
+        </span>
+      </summary>
 
+      <p className="mt-3 mb-3 text-xs text-muted">Startwerte: Durchschnitt deiner Runden ohne Box und ohne Startrunde</p>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <div className="grid gap-3 text-sm">
           <div className="flex items-end gap-2">
@@ -100,7 +106,7 @@ export function StrategyCalc({
         Grobe Planung: Gelbphasen, Safety Car und Reifenwechsel sind nicht eingerechnet. Bei VE begrenzt die Energie den
         Stint, nicht der Tank.
       </p>
-    </section>
+    </details>
   );
 }
 

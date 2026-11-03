@@ -26,6 +26,9 @@ function shift(ref: number | null, cmp: number | null, later = "später", earlie
   return `${de(Math.abs(d))} m ${d > 0 ? later : earlier}`;
 }
 
+/** Ab so vielen Metern Überlappung gilt eine Kurve als Rad an Rad gefahren (2 Messpunkte) */
+const ALONGSIDE_MIN_M = 10;
+
 /** Ein Satz zur Kurve mit dem größten Zeitverlust: was in der Vergleichsrunde anders war. */
 export function lossSummary(row: Row, labels: { reference: string; compare: string }): string {
   const { ref, cmp, corner, dt } = row;
@@ -39,7 +42,11 @@ export function lossSummary(row: Row, labels: { reference: string; compare: stri
   if (cmp.coastM - ref.coastM >= 20) parts.push(`${de(cmp.coastM - ref.coastM)} m mehr gerollt`);
   if (row.cmpOffM > 0) parts.push(`${de(row.cmpOffM)} m neben der Strecke`);
   const close = (g: number | null) => g !== null && g < CLOSE_GAP_S;
-  if (close(cmp.gapAhead) && !close(ref.gapAhead)) {
+  if (cmp.alongsideM >= ALONGSIDE_MIN_M) {
+    parts.push(`${de(cmp.alongsideM)} m Rad an Rad mit einem Auto${ref.alongsideM >= ALONGSIDE_MIN_M ? " (in der Referenz auch)" : ""}`);
+  } else if (ref.alongsideM >= ALONGSIDE_MIN_M) {
+    parts.push(`in der Referenz ${de(ref.alongsideM)} m Rad an Rad, hier nicht`);
+  } else if (close(cmp.gapAhead) && !close(ref.gapAhead)) {
     parts.push(`dabei ${de(cmp.gapAhead!, 1)} s hinter einem Auto, in der Referenz frei`);
   } else if (close(ref.gapAhead) && !close(cmp.gapAhead)) {
     parts.push(`in der Referenz ${de(ref.gapAhead!, 1)} s hinter einem Auto (Windschatten?), hier frei`);
@@ -153,6 +160,11 @@ export function CornerTable({
                       <GapValue g={r.ref.gapAhead} color="text-ref" />
                       <span className="text-muted"> / </span>
                       <GapValue g={r.cmp.gapAhead} color="text-accent" />
+                      {(r.ref.alongsideM >= ALONGSIDE_MIN_M || r.cmp.alongsideM >= ALONGSIDE_MIN_M) && (
+                        <span className="ml-2 rounded bg-[hsl(320_90%_62%/0.15)] px-1.5 py-0.5 font-sans text-[11px] text-[hsl(320_90%_70%)]">
+                          Rad an Rad
+                        </span>
+                      )}
                     </td>
                   )}
                   <td
@@ -172,7 +184,7 @@ export function CornerTable({
         Schnelle Kurven ohne Speed-Verlust (z. B. voll gefahren) tauchen nicht auf. Trail-Braking = Meter, in denen
         gleichzeitig gebremst und gelenkt wird.
         {hasGap &&
-          " Vordermann = mittlerer Abstand zum Auto vor dir in der Kurve, fett unter 1 s (Windschatten, schmutzige Luft oder Verkehr). „frei“ = meist kein Auto in Reichweite."}
+          " Vordermann = mittlerer Abstand zum Auto vor dir in der Kurve, fett unter 1 s (Windschatten, schmutzige Luft oder Verkehr). „frei“ = meist kein Auto in Reichweite. „Rad an Rad“ = mindestens 10 m weniger als eine Wagenlänge Abstand."}
       </p>
     </section>
   );

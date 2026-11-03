@@ -11,6 +11,7 @@ import { cornerStats, detectCorners } from "@/lib/analysis/corners";
 import { drivingStyle } from "@/lib/analysis/style";
 import { cornerName } from "@/data/tracks";
 import { formatSector } from "@/lib/format";
+import { sessionKind } from "@/lib/group";
 import { bestLap, lapSamples, type SessionFile } from "@/lib/lmu/session";
 import { deltaTrace, resampleByDistance } from "@/lib/telemetry/compare";
 import { formatLapTime } from "@/lib/telemetry/laps";
@@ -18,7 +19,17 @@ import { buildOutline } from "@/lib/track/outline";
 
 const STEP_M = 5;
 
-export function SessionView({ session }: { session: SessionFile }) {
+export function SessionView({ session: input }: { session: SessionFile }) {
+  // Der Abstand zum Vordermann meint das Auto eine Position vor dir in der Wertung. Im Rennen
+  // ist das das Auto vor dir auf der Strecke, im Training und in der Quali (Wertung nach
+  // Bestzeit) irgendein Auto. Deshalb nur im Rennen auswerten.
+  const session = useMemo(
+    () =>
+      sessionKind(input.sessionType) === "rennen"
+        ? input
+        : { ...input, laps: input.laps.map((l) => ({ ...l, data: { ...l.data, gap: undefined } })) },
+    [input],
+  );
   const best = bestLap(session) ?? session.laps.at(0)!;
   const [refLap, setRefLap] = useState(best.lap);
   const [cmpLap, setCmpLap] = useState(

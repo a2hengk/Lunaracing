@@ -16,7 +16,8 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
       l.aids?.brakeBiasFront !== first?.brakeBiasFront,
   );
 
-  const hasGap = [...styles.values()].some((s) => s.closePct !== null);
+  // Im Training schreibt LMU durchgehend 0: Spalten nur, wenn irgendwann ein Auto in Reichweite war
+  const hasGap = laps.some((l) => l.data.gap?.some((g) => g > 0));
 
   return (
     <section className="rounded-xl border border-line bg-panel p-4">
@@ -43,6 +44,11 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
               {hasGap && (
                 <th className="py-2 pr-3 font-medium" title="Anteil der Runde mit weniger als 1 s Abstand zum Auto vor dir">
                   Dicht dran
+                </th>
+              )}
+              {hasGap && (
+                <th className="py-2 pr-3 font-medium" title="Meter mit weniger als einer Wagenlänge Abstand zum Auto vor dir">
+                  Rad an Rad
                 </th>
               )}
               <th className="py-2 pr-3 font-medium">ABS</th>
@@ -72,6 +78,11 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
                   {hasGap && (
                     <td className={`py-2 pr-3 ${(s?.closePct ?? 0) >= 30 ? "font-bold" : ""}`}>
                       {s?.closePct == null ? "–" : `${de(s.closePct)} %`}
+                    </td>
+                  )}
+                  {hasGap && (
+                    <td className={`py-2 pr-3 ${(s?.alongsideM ?? 0) > 0 ? "text-[hsl(320_90%_70%)]" : ""}`}>
+                      {s?.alongsideM ? `${de(s.alongsideM)} m` : "–"}
                     </td>
                   )}
                   <td className="py-2 pr-3">{de(l.aids?.absSeconds, 1)} s</td>
