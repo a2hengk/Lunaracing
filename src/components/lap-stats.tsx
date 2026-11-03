@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { DrivingStyle } from "@/lib/analysis/style";
 import type { StoredLap } from "@/lib/lmu/session";
 
@@ -6,7 +7,16 @@ const de = (v: number | undefined, digits = 0) =>
     ? "–"
     : v.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<number, DrivingStyle> }) {
+export function LapStats({
+  laps,
+  styles,
+  children,
+}: {
+  laps: StoredLap[];
+  styles: Map<number, DrivingStyle>;
+  /** unter der Tabelle im selben Kasten, z. B. der Sprit- und VE-Rechner */
+  children?: ReactNode;
+}) {
   const first = laps.at(0)?.aids;
   const settingsChanged = laps.some(
     (l) =>
@@ -97,6 +107,7 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
           </tbody>
         </table>
       </div>
+      {children && <div className="mt-4 border-t border-line pt-4">{children}</div>}
     </section>
   );
 }

@@ -1,6 +1,9 @@
 "use client";
 
+import { Fragment, useCallback, useState } from "react";
+import { TelemetryChart } from "@/components/lap-analysis";
 import { CLOSE_GAP_S, type Corner, type CornerStats } from "@/lib/analysis/corners";
+import type { DeltaPoint, DistPoint } from "@/lib/telemetry/compare";
 
 export type CornerRow = {
   corner: Corner;
@@ -57,27 +60,44 @@ export function lossSummary(row: Row, labels: { reference: string; compare: stri
   return `Kurve ${corner.n}${corner.name ? ` (${corner.name})` : ""}: ${labels.compare} ${dt > 0 ? "verliert" : "gewinnt"} ${de(Math.abs(dt), 2)} s gegenüber ${labels.reference}. ${what.charAt(0).toUpperCase()}${what.slice(1)}.`;
 }
 
+export type CornerTraces = {
+  reference: DistPoint[];
+  compare: DistPoint[];
+  delta: DeltaPoint[];
+  stepM: number;
+};
+
 export function CornerTable({
   rows,
   labels,
   activeCorner,
-  onSelect,
+  traces,
 }: {
   rows: Row[];
   labels: { reference: string; compare: string };
+  /** auf der Karte angeklickte Kurve, wird hervorgehoben */
   activeCorner: number | null;
-  onSelect: (c: Corner) => void;
+  traces: CornerTraces;
 }) {
+  const [open, setOpen] = useState<Set<number>>(() => new Set());
+  const toggle = (n: number) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(n)) next.delete(n);
+      else next.add(n);
+      return next;
+    });
+  const cols = hasGapCols(rows) ? 8 : 7;
   const worst = rows.toSorted((a, b) => b.dt - a.dt).at(0);
   const best = rows.toSorted((a, b) => a.dt - b.dt).at(0);
-  const hasGap = rows.some((r) => r.ref.gapAhead !== null || r.cmp.gapAhead !== null);
+  const hasGap = hasGapCols(rows);
 
   return (
     <section className="rounded-xl border border-line bg-panel p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Kurven</h2>
         <span className="text-xs text-muted">
-          {labels.compare} gegen {labels.reference} · Klick auf eine Zeile zoomt auf die Kurve
+          {labels.compare} gegen {labels.reference} · Klick auf eine Kurve klappt ihre Telemetrie auf
         </span>
       </div>
 
@@ -115,13 +135,16 @@ export function CornerTable({
           <tbody>
             {rows.map((r) => {
               const dv = r.cmp.minSpeed - r.ref.minSpeed;
+              const isOpen = open.has(r.corner.n);
               return (
+                <Fragment key={r.corner.n}>
                 <tr
-                  key={r.corner.n}
-                  onClick={() => onSelect(r.corner)}
-                  className={`cursor-pointer border-b border-line transition last:border-0 hover:bg-bg ${activeCorner === r.corner.n ? "bg-bg" : ""}`}
+                  onClick={() => toggle(r.corner.n)}
+                  aria-expanded={isOpen}
+                  className={`cursor-pointer border-b border-line transition hover:bg-bg ${activeCorner === r.corner.n || isOpen ? "bg-bg" : ""}`}
                 >
                   <td className="py-2 pr-3">
+                    <span aria-hidden className={`mr-2 inline-block text-muted transition ${isOpen ? "rotate-90" : ""}`}>›</span>
                     <span className="font-semibold">{r.corner.n}</span>
                     {r.corner.name && <span className="ml-2">{r.corner.name}</span>}
                     <span className="ml-2 text-xs text-muted">bei {de(r.corner.apex / 1000, 1)} km</span>
@@ -174,6 +197,14 @@ export function CornerTable({
                     {de(Math.abs(r.dt), 2)} s
                   </td>
                 </tr>
+                {isOpen && (
+                  <tr className="border-b border-line bg-bg/40">
+                    <td colSpan={cols} className="px-1 py-3">
+                      <CornerChart corner={r.corner} traces={traces} labels={labels} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
@@ -193,4 +224,41 @@ export function CornerTable({
 function GapValue({ g, color }: { g: number | null; color: string }) {
   if (g === null) return <span className="text-muted">frei</span>;
   return <span className={`${color} ${g < CLOSE_GAP_S ? "font-bold" : ""}`}>{de(g, 1)}</span>;
+}
+
+function hasGapCols(rows: Row[]) {
+  return rows.some((r) => r.ref.gapAhead !== null || r.cmp.gapAhead !== null);
+}
+
+const noZoom = () => {};
+
+/** Telemetrie einer einzelnen Kurve, von der Bremszone bis zum Ausgang. */
+function CornerChart({
+  corner,
+  traces,
+  labels,
+}: {
+  corner: Corner;
+  traces: CornerTraces;
+  labels: { reference: string; compare: string };
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const onHover = useCallback((d: number | null) => setHover(d), []);
+  const [view] = useState(() => ({ from: corner.from, to: corner.to }));
+  return (
+    <TelemetryChart
+      compact
+      reference={traces.reference}
+      compare={traces.compare}
+      delta={traces.delta}
+      stepM={traces.stepM}
+      labels={labels}
+      length={traces.reference.at(-1)?.dist ?? corner.to}
+      view={view}
+      zoomed
+      onZoom={noZoom}
+      hover={hover}
+      onHover={onHover}
+    />
+  );
 }

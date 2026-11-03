@@ -43,7 +43,7 @@ export function StrategyCalc({
   });
 
   return (
-    <details className="group rounded-xl border border-line bg-panel p-4">
+    <details className="group">
       <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-3 [&::-webkit-details-marker]:hidden">
         <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-muted uppercase">
           <span aria-hidden className="inline-block transition group-open:rotate-90">›</span>

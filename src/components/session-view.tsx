@@ -98,58 +98,60 @@ export function SessionView({ session: input }: { session: SessionFile }) {
     Math.min(...session.laps.filter((l) => l.valid).map((l) => l.sectorsMs.at(i)!).filter((v) => v > 0)),
   );
 
+  const lapTable = (
+    <section className="overflow-x-auto rounded-xl border border-line bg-panel">
+      <table className="w-full min-w-[560px] text-sm">
+        <thead className="text-left text-xs text-muted">
+          <tr className="border-b border-line">
+            <th className="px-3 py-2.5 font-medium">Runde</th>
+            <th className="px-3 py-2.5 font-medium">Zeit</th>
+            <th className="px-3 py-2.5 font-medium">S1</th>
+            <th className="px-3 py-2.5 font-medium">S2</th>
+            <th className="px-3 py-2.5 font-medium">S3</th>
+            <th className="px-3 py-2.5 text-right font-medium">Vergleich</th>
+          </tr>
+        </thead>
+        <tbody>
+          {session.laps.map((l) => (
+            <tr key={l.lap} className={`border-b border-line last:border-0 ${l.valid ? "" : "text-muted"}`}>
+              <td className="px-3 py-2.5">
+                {l.lap}
+                {l.start && (
+                  <span className="ml-2 text-xs text-muted" title="Erste Rennrunde ab dem Start, ohne Einführungsrunde">
+                    Start
+                  </span>
+                )}
+                {l === best && <span className="ml-2 text-xs text-accent">Bestzeit</span>}
+                {!l.valid && <span className="ml-2 text-xs">nicht gewertet</span>}
+              </td>
+              <td className="px-3 py-2.5 font-mono tabular-nums">{formatLapTime(l.timeMs)}</td>
+              {l.sectorsMs.map((s, i) => (
+                <td
+                  key={i}
+                  className={`px-3 py-2.5 font-mono tabular-nums ${s > 0 && s === bestSectors.at(i) ? "text-good" : ""}`}
+                >
+                  {formatSector(s)}
+                </td>
+              ))}
+              <td className="px-3 py-2 text-right">
+                <div className="inline-flex gap-1 text-xs">
+                  <Pick active={refLap === l.lap} onClick={() => setRefLap(l.lap)} tone="ref">
+                    Referenz
+                  </Pick>
+                  <Pick active={cmpLap === l.lap} onClick={() => setCmpLap(l.lap)} tone="accent">
+                    Vergleich
+                  </Pick>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <section className="overflow-x-auto rounded-xl border border-line bg-panel">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead className="text-left text-xs text-muted">
-            <tr className="border-b border-line">
-              <th className="px-4 py-2.5 font-medium">Runde</th>
-              <th className="px-4 py-2.5 font-medium">Zeit</th>
-              <th className="px-4 py-2.5 font-medium">S1</th>
-              <th className="px-4 py-2.5 font-medium">S2</th>
-              <th className="px-4 py-2.5 font-medium">S3</th>
-              <th className="px-4 py-2.5 text-right font-medium">Vergleich</th>
-            </tr>
-          </thead>
-          <tbody>
-            {session.laps.map((l) => (
-              <tr key={l.lap} className={`border-b border-line last:border-0 ${l.valid ? "" : "text-muted"}`}>
-                <td className="px-4 py-2.5">
-                  {l.lap}
-                  {l.start && (
-                    <span className="ml-2 text-xs text-muted" title="Erste Rennrunde ab dem Start, ohne Einführungsrunde">
-                      Start
-                    </span>
-                  )}
-                  {l === best && <span className="ml-2 text-xs text-accent">Bestzeit</span>}
-                  {!l.valid && <span className="ml-2 text-xs">nicht gewertet</span>}
-                </td>
-                <td className="px-4 py-2.5 font-mono tabular-nums">{formatLapTime(l.timeMs)}</td>
-                {l.sectorsMs.map((s, i) => (
-                  <td
-                    key={i}
-                    className={`px-4 py-2.5 font-mono tabular-nums ${s > 0 && s === bestSectors.at(i) ? "text-good" : ""}`}
-                  >
-                    {formatSector(s)}
-                  </td>
-                ))}
-                <td className="px-4 py-2 text-right">
-                  <div className="inline-flex gap-1 text-xs">
-                    <Pick active={refLap === l.lap} onClick={() => setRefLap(l.lap)} tone="ref">
-                      Referenz
-                    </Pick>
-                    <Pick active={cmpLap === l.lap} onClick={() => setCmpLap(l.lap)} tone="accent">
-                      Vergleich
-                    </Pick>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
       <LapAnalysis
         outline={outline}
         reference={reference}
@@ -164,24 +166,21 @@ export function SessionView({ session: input }: { session: SessionFile }) {
           setRange(r);
           setActiveCorner(r ? (corners.find((c) => c.from === r.from && c.to === r.to)?.n ?? null) : null);
         }}
+        aside={lapTable}
       />
 
       <CornerTable
         rows={cornerRows}
         labels={labels}
         activeCorner={activeCorner}
-        onSelect={(c) => {
-          setRange({ from: c.from, to: c.to });
-          setActiveCorner(c.n);
-          document.getElementById("analyse")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }}
+        traces={{ reference, compare, delta, stepM: STEP_M }}
       />
-
-      <LapStats laps={session.laps} styles={styles} />
 
       <StintReport stints={stints} />
 
-      <StrategyCalc {...raceBase} />
+      <LapStats laps={session.laps} styles={styles}>
+        <StrategyCalc {...raceBase} />
+      </LapStats>
     </div>
   );
 }
