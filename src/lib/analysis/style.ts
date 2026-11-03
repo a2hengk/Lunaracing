@@ -1,4 +1,5 @@
 import type { DistPoint } from "../telemetry/compare";
+import { CLOSE_GAP_S } from "./corners";
 
 /** Fahrstil-Kennzahlen einer Runde, alle über die Distanz gerechnet. */
 export type DrivingStyle = {
@@ -12,6 +13,8 @@ export type DrivingStyle = {
   trailBrakePct: number;
   /** wie oft das Gas außerhalb von Bremszonen kurz zurückgenommen wird */
   throttleLifts: number;
+  /** Anteil der Strecke mit weniger als 1 s Abstand zum Vordermann, null = keine Daten */
+  closePct: number | null;
 };
 
 export function drivingStyle(lap: DistPoint[]): DrivingStyle {
@@ -38,5 +41,8 @@ export function drivingStyle(lap: DistPoint[]): DrivingStyle {
       ? (braking.filter((p) => Math.abs(p.steering) > 0.05).length / braking.length) * 100
       : 0,
     throttleLifts: lifts,
+    closePct: lap.some((p) => p.gap !== undefined)
+      ? (lap.filter((p) => p.gap !== undefined && p.gap > 0 && p.gap < CLOSE_GAP_S).length / n) * 100
+      : null,
   };
 }

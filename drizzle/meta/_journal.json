@@ -15,6 +15,13 @@
       "when": 1793218252201,
       "tag": "0001_blob_and_lap_details",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793741322947,
+      "tag": "0002_lap_is_start",
+      "breakpoints": true
     }
   ]
 }

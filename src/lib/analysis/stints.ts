@@ -3,7 +3,7 @@ import type { StoredLap } from "../lmu/session";
 export type Stint = {
   n: number;
   laps: StoredLap[];
-  /** Runden ohne Boxengasse, aus denen Pace und Trend gerechnet werden */
+  /** Runden ohne Boxengasse und ohne Startrunde, aus denen Pace und Trend gerechnet werden */
   paceLaps: StoredLap[];
   avgMs: number;
   bestMs: number | null;
@@ -40,7 +40,7 @@ export function splitStints(laps: StoredLap[]): Stint[] {
 }
 
 function stintStats(laps: StoredLap[], n: number): Stint {
-  const pace = laps.filter((l) => !l.pit);
+  const pace = laps.filter((l) => !l.pit && !l.start);
   const times = pace.map((l) => l.timeMs);
   const avg = times.length ? times.reduce((a, b) => a + b, 0) / times.length : 0;
   const stdev = times.length > 1 ? Math.sqrt(times.reduce((a, t) => a + (t - avg) ** 2, 0) / (times.length - 1)) : 0;

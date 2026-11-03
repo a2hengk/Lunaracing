@@ -23,6 +23,8 @@ export type Sample = {
   x: number;
   y?: number;
   z: number;
+  /** Abstand zum Auto vor dir in s, 0 = keins vor dir, undefined = unbekannt */
+  gapAhead?: number;
 };
 
 export type Lap = {

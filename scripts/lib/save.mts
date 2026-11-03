@@ -68,6 +68,21 @@ export async function checkDb(db: Db) {
   await db.select({ slug: sessions.slug }).from(sessions).limit(1);
 }
 
+/** Löscht eine Session samt Runden und ihren Dateien im Blob-Speicher. Für den Neu-Import. */
+export async function deleteSession(db: Db, slug: string, storage: LapStorage = vercelBlob) {
+  const [row] = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.slug, slug)).limit(1);
+  if (!row) return false;
+  const urls = await db
+    .select({ url: lapTraces.blobUrl })
+    .from(lapTraces)
+    .innerJoin(laps, eq(lapTraces.lapId, laps.id))
+    .where(eq(laps.sessionId, row.id));
+  // Runden und Verweise gehen per ON DELETE CASCADE mit
+  await db.delete(sessions).where(eq(sessions.id, row.id));
+  if (urls.length) await storage.remove(urls.map((u) => u.url)).catch(() => {});
+  return true;
+}
+
 export async function sessionExists(db: Db, slug: string, hash: string) {
   const bySlug = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.slug, slug)).limit(1);
   if (bySlug.length) return true;
@@ -149,7 +164,7 @@ export async function saveSession(
           lapId: lapRow!.id,
           blobUrl: uploaded.find((u) => u.lap === lap.lap)!.url,
           sampleHz: session.sampleHz,
-          channels: [...TRACE_CHANNELS],
+          channels: [...TRACE_CHANNELS, ...(lap.data.gap ? ["gap"] : [])],
         });
       }
     });

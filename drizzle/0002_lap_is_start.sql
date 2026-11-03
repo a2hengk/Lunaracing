@@ -1,0 +1,1 @@
+ALTER TABLE "laps" ADD COLUMN "is_start" boolean DEFAULT false NOT NULL;

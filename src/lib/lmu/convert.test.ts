@@ -94,6 +94,75 @@ describe("convertRecording", () => {
   });
 });
 
+/**
+ * Rennen: Zähler 0 umfasst Einführungsrunde und erste Rennrunde (Start bei 20 s), danach
+ * Runde 1. Bis 40 s fährt ein Auto 0,5 s vor uns, danach ist frei.
+ */
+function fakeRace(): RawRecording {
+  const t0 = 2000;
+  const duration = 70;
+  const lapDist: number[] = [];
+  const lat: number[] = [];
+  const lon: number[] = [];
+  const gap: number[] = [];
+  for (let i = 0; i <= duration * 10; i++) {
+    const t = i / 10;
+    const d = (t * 50) % 1000;
+    lapDist.push(d);
+    const a = (d / 1000) * 2 * Math.PI;
+    lat.push(60 + 0.001 * Math.sin(a));
+    lon.push(0.002 * Math.cos(a));
+    gap.push(t < 40 ? -0.5 : 0);
+  }
+  const n = duration * 50 + 1;
+  return {
+    t0,
+    meta: { TrackName: "Teststrecke", CarName: "Testauto #1:WEC", CarClass: "GT3", SessionType: "Race", RecordingTime: "2026-11-03T19_57_59Z" },
+    channels: {
+      "Ground Speed": { hz: 50, values: Array.from({ length: n }, () => 180) },
+      "Throttle Pos": { hz: 50, values: Array.from({ length: n }, () => 100) },
+      "Brake Pos": { hz: 50, values: Array.from({ length: n }, () => 0) },
+      "Steering Pos": { hz: 50, values: Array.from({ length: n }, () => 0) },
+      "Lap Dist": { hz: 10, values: lapDist },
+      "GPS Latitude": { hz: 10, values: lat },
+      "GPS Longitude": { hz: 10, values: lon },
+      "Time Behind Next": { hz: 10, values: gap },
+    },
+    events: {
+      Lap: [
+        { ts: t0, value: 0 },
+        { ts: t0 + 40, value: 1 },
+        { ts: t0 + 60, value: 2 },
+      ],
+      "Lap Time": [
+        { ts: t0 + 40, value: 20 },
+        { ts: t0 + 60, value: 20 },
+      ],
+      Gear: [{ ts: t0, value: 4 }],
+    },
+  };
+}
+
+describe("convertRecording im Rennen", () => {
+  const session = convertRecording(fakeRace(), "rennen");
+
+  it("behält die Startrunde ohne Einführungsrunde", () => {
+    expect(session.laps.map((l) => l.lap)).toEqual([0, 1]);
+    const [start, l1] = session.laps;
+    expect(start!.start).toBe(true);
+    expect(start!.timeMs).toBe(20000);
+    expect(start!.data.t.at(-1)! - start!.data.t.at(0)!).toBeCloseTo(20, 0);
+    expect(l1!.start).toBeUndefined();
+  });
+
+  it("speichert den Abstand zum Vordermann als positive Sekunden", () => {
+    const [start, l1] = session.laps;
+    // die letzten Punkte liegen auf dem Wechsel und werden interpoliert
+    expect(start!.data.gap?.slice(0, -2).every((g) => g === 0.5)).toBe(true);
+    expect(l1!.data.gap?.slice(5).every((g) => g === 0)).toBe(true);
+  });
+});
+
 describe("Hilfsfunktionen", () => {
   it("unwrapLapDist macht aus dem Sprung eine steigende Kurve", () => {
     const { values, length } = unwrapLapDist([980, 990, 0, 10, 20]);

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Corner, CornerStats } from "@/lib/analysis/corners";
+import { CLOSE_GAP_S, type Corner, type CornerStats } from "@/lib/analysis/corners";
 
 export type CornerRow = {
   corner: Corner;
@@ -38,6 +38,14 @@ export function lossSummary(row: Row, labels: { reference: string; compare: stri
   if (gas && gas !== "gleich") parts.push(`${gas} am Gas`);
   if (cmp.coastM - ref.coastM >= 20) parts.push(`${de(cmp.coastM - ref.coastM)} m mehr gerollt`);
   if (row.cmpOffM > 0) parts.push(`${de(row.cmpOffM)} m neben der Strecke`);
+  const close = (g: number | null) => g !== null && g < CLOSE_GAP_S;
+  if (close(cmp.gapAhead) && !close(ref.gapAhead)) {
+    parts.push(`dabei ${de(cmp.gapAhead!, 1)} s hinter einem Auto, in der Referenz frei`);
+  } else if (close(ref.gapAhead) && !close(cmp.gapAhead)) {
+    parts.push(`in der Referenz ${de(ref.gapAhead!, 1)} s hinter einem Auto (Windschatten?), hier frei`);
+  } else if (close(cmp.gapAhead) && close(ref.gapAhead)) {
+    parts.push("in beiden Runden dicht hinter einem Auto");
+  }
   const what = parts.length ? parts.join(", ") : "keine klare Ursache in Bremse, Speed oder Gas";
   return `Kurve ${corner.n}${corner.name ? ` (${corner.name})` : ""}: ${labels.compare} ${dt > 0 ? "verliert" : "gewinnt"} ${de(Math.abs(dt), 2)} s gegenüber ${labels.reference}. ${what.charAt(0).toUpperCase()}${what.slice(1)}.`;
 }
@@ -55,6 +63,7 @@ export function CornerTable({
 }) {
   const worst = rows.toSorted((a, b) => b.dt - a.dt).at(0);
   const best = rows.toSorted((a, b) => a.dt - b.dt).at(0);
+  const hasGap = rows.some((r) => r.ref.gapAhead !== null || r.cmp.gapAhead !== null);
 
   return (
     <section className="rounded-xl border border-line bg-panel p-4">
@@ -88,6 +97,11 @@ export function CornerTable({
               <th className="py-2 pr-3 font-medium">Gas wieder an</th>
               <th className="py-2 pr-3 font-medium">Trail-Braking (m)</th>
               <th className="py-2 pr-3 font-medium">Rollen (m)</th>
+              {hasGap && (
+                <th className="py-2 pr-3 font-medium" title="Durchschnittlicher Abstand zum Auto vor dir in der Kurve">
+                  Vordermann (s)
+                </th>
+              )}
               <th className="py-2 text-right font-medium">Zeit</th>
             </tr>
           </thead>
@@ -134,6 +148,13 @@ export function CornerTable({
                     <span className="text-muted"> / </span>
                     <span className="text-accent">{r.cmp.coastM}</span>
                   </td>
+                  {hasGap && (
+                    <td className="py-2 pr-3 font-mono tabular-nums">
+                      <GapValue g={r.ref.gapAhead} color="text-ref" />
+                      <span className="text-muted"> / </span>
+                      <GapValue g={r.cmp.gapAhead} color="text-accent" />
+                    </td>
+                  )}
                   <td
                     className={`py-2 text-right font-mono tabular-nums ${r.dt > 0.05 ? "text-loss" : r.dt < -0.05 ? "text-good" : "text-muted"}`}
                   >
@@ -150,7 +171,14 @@ export function CornerTable({
         Kurven werden aus dem Speed-Verlauf der Bestrunde erkannt: jede Stelle, an der du mindestens 12 km/h abbaust.
         Schnelle Kurven ohne Speed-Verlust (z. B. voll gefahren) tauchen nicht auf. Trail-Braking = Meter, in denen
         gleichzeitig gebremst und gelenkt wird.
+        {hasGap &&
+          " Vordermann = mittlerer Abstand zum Auto vor dir in der Kurve, fett unter 1 s (Windschatten, schmutzige Luft oder Verkehr). „frei“ = meist kein Auto in Reichweite."}
       </p>
     </section>
   );
+}
+
+function GapValue({ g, color }: { g: number | null; color: string }) {
+  if (g === null) return <span className="text-muted">frei</span>;
+  return <span className={`${color} ${g < CLOSE_GAP_S ? "font-bold" : ""}`}>{de(g, 1)}</span>;
 }

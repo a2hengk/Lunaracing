@@ -24,6 +24,7 @@ export type LapRow = {
   s3Ms: number | null;
   valid: boolean;
   pit: boolean;
+  isStart: boolean;
   fuelUsed: number | null;
   usage: StoredLap["usage"] | null;
   aids: StoredLap["aids"] | null;
@@ -41,6 +42,7 @@ export function lapToRow(lap: StoredLap): LapRow {
     s3Ms: s(2),
     valid: lap.valid,
     pit: lap.pit ?? false,
+    isStart: lap.start ?? false,
     fuelUsed: lap.usage?.fuelL ?? null,
     usage: lap.usage ?? null,
     aids: lap.aids ?? null,
@@ -56,6 +58,7 @@ export function rowToLap(row: LapRow, data: StoredLap["data"]): StoredLap {
     sectorsMs: [row.s1Ms ?? 0, row.s2Ms ?? 0, row.s3Ms ?? 0],
     valid: row.valid,
     pit: row.pit,
+    ...(row.isStart ? { start: true } : {}),
     usage: row.usage ?? undefined,
     aids: row.aids ?? undefined,
     tyres: row.tyres ?? undefined,
@@ -74,5 +77,7 @@ export function isLapData(v: unknown): v is StoredLap["data"] {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
   const n = Array.isArray(o.t) ? o.t.length : -1;
-  return n >= 0 && TRACE_CHANNELS.every((k) => Array.isArray(o[k]) && (o[k] as unknown[]).length === n);
+  if (n < 0 || !TRACE_CHANNELS.every((k) => Array.isArray(o[k]) && (o[k] as unknown[]).length === n)) return false;
+  // optional, erst ab dem Import mit Abstand zum Vordermann
+  return o.gap === undefined || (Array.isArray(o.gap) && o.gap.length === n);
 }

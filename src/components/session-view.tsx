@@ -64,12 +64,13 @@ export function SessionView({ session }: { session: SessionFile }) {
     () => new Map(session.laps.map((l) => [l.lap, drivingStyle(byLap.get(l.lap)!)])),
     [session, byLap],
   );
-  const labels = { reference: `Runde ${refLap}`, compare: `Runde ${cmpLap}` };
+  const lapName = (n: number) => (session.laps.find((l) => l.lap === n)?.start ? "Startrunde" : `Runde ${n}`);
+  const labels = { reference: lapName(refLap), compare: lapName(cmpLap) };
 
   const stints = useMemo(() => splitStints(session.laps), [session]);
-  // Startwerte für den Rechner: Durchschnitt aller Runden ohne Boxengasse
+  // Startwerte für den Rechner: Durchschnitt aller Runden ohne Boxengasse und ohne Startrunde
   const raceBase = useMemo(() => {
-    const laps = session.laps.filter((l) => !l.pit);
+    const laps = session.laps.filter((l) => !l.pit && !l.start);
     const avg = (pick: (l: (typeof laps)[number]) => number | undefined) => {
       const vals = laps.map(pick).filter((v): v is number => v !== undefined);
       return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
@@ -105,6 +106,11 @@ export function SessionView({ session }: { session: SessionFile }) {
               <tr key={l.lap} className={`border-b border-line last:border-0 ${l.valid ? "" : "text-muted"}`}>
                 <td className="px-4 py-2.5">
                   {l.lap}
+                  {l.start && (
+                    <span className="ml-2 text-xs text-muted" title="Erste Rennrunde ab dem Start, ohne Einführungsrunde">
+                      Start
+                    </span>
+                  )}
                   {l === best && <span className="ml-2 text-xs text-accent">Bestzeit</span>}
                   {!l.valid && <span className="ml-2 text-xs">nicht gewertet</span>}
                 </td>

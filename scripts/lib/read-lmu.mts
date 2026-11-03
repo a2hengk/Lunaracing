@@ -22,6 +22,7 @@ const EXTRA_CHANNELS = [
   "TyresTempCentre",
   "TyresTempRight",
   "TyresPressure",
+  "Time Behind Next",
 ];
 const EVENTS = [
   "Lap",

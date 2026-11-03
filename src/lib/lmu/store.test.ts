@@ -31,6 +31,13 @@ describe("store", () => {
     expect(rowToLap(lapToRow(lap), data)).toEqual({ ...lap, tyres: undefined });
   });
 
+  it("Startrunde bleibt beim Speichern erhalten", () => {
+    const row = lapToRow({ ...lap, lap: 0, start: true });
+    expect(row.isStart).toBe(true);
+    expect(rowToLap(row, data).start).toBe(true);
+    expect(lapToRow(lap).isStart).toBe(false);
+  });
+
   it("fehlende Sektoren werden zu null und zurück zu 0", () => {
     const row = lapToRow({ ...lap, sectorsMs: [0, 0, 0] });
     expect([row.s1Ms, row.s2Ms, row.s3Ms]).toEqual([null, null, null]);
@@ -48,5 +55,7 @@ describe("store", () => {
     expect(isLapData(data)).toBe(true);
     expect(isLapData({ ...data, speed: [1] })).toBe(false);
     expect(isLapData(null)).toBe(false);
+    expect(isLapData({ ...data, gap: [0.4, 0.5] })).toBe(true);
+    expect(isLapData({ ...data, gap: [0.4] })).toBe(false);
   });
 });

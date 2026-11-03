@@ -10,6 +10,8 @@ export type DistPoint = {
   brake: number;
   /** -1..1, 0 wenn die Quelle keine Lenkung liefert */
   steering: number;
+  /** Abstand zum Vordermann in s, 0 = keins vor dir, undefined = unbekannt */
+  gap?: number;
 };
 
 /**
@@ -38,6 +40,7 @@ export function resampleByDistance(samples: Sample[], stepM = 5): DistPoint[] {
       throttle: mix(a.throttle, b.throttle),
       brake: mix(a.brake, b.brake),
       steering: mix(a.steering ?? 0, b.steering ?? 0),
+      ...(a.gapAhead !== undefined ? { gap: f < 0.5 ? a.gapAhead : (b.gapAhead ?? a.gapAhead) } : {}),
     });
   }
   return out;
