@@ -220,7 +220,7 @@ function TrackMap({
         nx = -nx;
         ny = -ny;
       }
-      return { c, x: mx + nx * 18, y: my + ny * 18, mx, my };
+      return { c, x: r2(mx + nx * 18), y: r2(my + ny * 18), mx: r2(mx), my: r2(my) };
     });
   }, [corners, outline, proj]);
 
@@ -449,6 +449,12 @@ function TrackMap({
     </section>
   );
 }
+
+/**
+ * Auf 1/100 runden. Math.hypot & Co. liefern in Node und im Browser nicht bitgenau dasselbe,
+ * ungerundet passt das Server-HTML dann nicht zum Client (Hydration-Warnung).
+ */
+const r2 = (v: number) => Math.round(v * 100) / 100;
 
 const signed = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(3)} s`;
 
@@ -685,7 +691,7 @@ function StartFinish({ outline, project }: { outline: OutlinePoint[]; project: (
   const len = Math.hypot(x2 - x1, y2 - y1) || 1;
   const nx = (-(y2 - y1) / len) * 10;
   const ny = ((x2 - x1) / len) * 10;
-  return <line x1={x1 - nx} y1={y1 - ny} x2={x1 + nx} y2={y1 + ny} stroke="var(--color-fg)" strokeWidth={3} />;
+  return <line x1={r2(x1 - nx)} y1={r2(y1 - ny)} x2={r2(x1 + nx)} y2={r2(y1 + ny)} stroke="var(--color-fg)" strokeWidth={3} />;
 }
 
 function Legend({ mode }: { mode: Mode }) {
