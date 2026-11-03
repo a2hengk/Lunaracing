@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { listSessions } from "@/lib/data";
-import { formatDate, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
-import { formatLapTime } from "@/lib/telemetry/laps";
+import { SessionBrowser } from "@/components/session-browser";
 
 export default function Home() {
   return (
@@ -42,41 +41,16 @@ async function SessionList() {
     );
   }
 
-  return (
-    <ul className="grid gap-3 sm:grid-cols-2">
-      {list.map((s) => (
-        <li key={s.slug}>
-          <Link
-            href={`/sessions/${s.slug}`}
-            className="block rounded-xl border border-line bg-panel p-4 transition hover:border-accent/60"
-          >
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="font-semibold">{shortTrack(s.track)}</h2>
-              <span className="text-xs text-muted">{formatDate(s.recordedAt)}</span>
-            </div>
-            <p className="mt-0.5 text-sm text-muted">
-              {joinParts(shortLayout(s.track, s.layout), s.car, s.carClass, sessionTypeDe(s.sessionType))}
-            </p>
-            <div className="mt-3 flex gap-4 text-sm">
-              <span>
-                <span className="text-muted">Bestzeit </span>
-                <span className="font-mono tabular-nums">{s.bestMs ? formatLapTime(s.bestMs) : "–"}</span>
-              </span>
-              <span className="text-muted">{s.laps} Runden</span>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
+  return <SessionBrowser sessions={list} />;
 }
 
 function ListSkeleton() {
   return (
-    <ul className="grid animate-pulse gap-3 sm:grid-cols-2" aria-label="Sessions werden geladen">
-      {[0, 1].map((i) => (
-        <li key={i} className="h-[106px] rounded-xl border border-line bg-panel" />
+    <div className="grid animate-pulse gap-4" aria-label="Sessions werden geladen">
+      <div className="h-9 w-72 rounded-lg bg-panel" />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-[60px] rounded-xl border border-line bg-panel" />
       ))}
-    </ul>
+    </div>
   );
 }

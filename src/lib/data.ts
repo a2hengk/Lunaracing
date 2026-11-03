@@ -6,18 +6,9 @@ import { db } from "@/db";
 import { cars, lapTraces, laps, sessions, tracks } from "@/db/schema";
 import type { SessionFile } from "@/lib/lmu/session";
 import { isLapData, rowToLap } from "@/lib/lmu/store";
+import type { SessionListItem } from "@/lib/data-types";
 
-export type SessionListItem = {
-  slug: string;
-  track: string;
-  layout: string;
-  car: string;
-  carClass: string;
-  sessionType: string;
-  recordedAt: string;
-  laps: number;
-  bestMs: number | null;
-};
+export type { SessionListItem };
 
 /** Alle Sessions, neueste zuerst. Nicht gecacht, damit neue Importe sofort auftauchen. */
 export async function listSessions(): Promise<SessionListItem[]> {
