@@ -27,6 +27,19 @@ export const tracks: TrackInfo[] = [
       { at: 6665, name: "Bus Stop" },
     ],
   },
+  {
+    track: "Autodromo Nazionale Monza",
+    layout: "Autodromo Nazionale Monza",
+    // aus dem Rennen vom 03.11.2026, auf 0,1 km genau
+    corners: [
+      { at: 1000, name: "Prima Variante" },
+      { at: 2200, name: "Roggia" },
+      { at: 2500, name: "Lesmo 1" },
+      { at: 2900, name: "Lesmo 2" },
+      { at: 4000, name: "Ascari" },
+      { at: 5200, name: "Parabolica" },
+    ],
+  },
 ];
 
 const MATCH_M = 150;

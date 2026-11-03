@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
-/* Dunkel mit kühlem Blau als Akzent, wie Lunas OS */
+/* Racing-Design: dunkles Graphit, blau = Vergleichsrunde und schneller, orange = langsamer */
 @theme {
-  --color-bg: #0b0e13;
-  --color-panel: #121722;
-  --color-line: #232b3a;
-  --color-fg: #e6ebf2;
-  --color-muted: #8591a5;
+  --color-bg: #14171c;
+  --color-panel: #1b1f26;
+  --color-deep: #0b0d10;
+  --color-line: #2a303a;
+  --color-fg: #eceff3;
+  --color-muted: #9aa3b0;
+  --color-soft: #c9cfd8;
   --color-accent: #5ab4ff;
-  --color-ref: #a8b3c4;
-  --color-loss: #ff8a7a;
-  --color-good: #5fd39a;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ref: #eceff3;
+  --color-loss: #ff8a3d;
+  --color-good: #5ab4ff;
+  --color-same: #4a525e;
+  /* Sektoren: Session-Bestzeit, höchstens 0,2 s dahinter, mehr */
+  --color-best: #c29bff;
+  --color-near: #4ade80;
+  --color-far: #f2c14e;
+  --color-offtrack: #e5484d;
+  --font-sans: "Saira", system-ui, sans-serif;
+  --font-display: "Saira Condensed", "Saira", system-ui, sans-serif;
+  --font-mono: "Saira Condensed", "Saira", system-ui, sans-serif;
 }
 
 body {
   background: var(--color-bg);
   color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

@@ -27,6 +27,8 @@ type Props = {
   onRange?: (r: Range | null) => void;
   /** Inhalt neben der Karte (z. B. die Rundentabelle). Dann steht die Telemetrie darunter über die ganze Breite. */
   aside?: ReactNode;
+  /** Inhalt links vor der Karte (Session-Überblick), nur zusammen mit aside */
+  lead?: ReactNode;
 };
 
 export type Range = { from: number; to: number };
@@ -43,6 +45,7 @@ export function LapAnalysis({
   range: rangeProp,
   onRange,
   aside,
+  lead,
 }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [ownRange, setOwnRange] = useState<Range | null>(null);
@@ -98,9 +101,10 @@ export function LapAnalysis({
   }
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        {map}
-        {aside}
+      <div className="flex flex-wrap items-start gap-10 pt-2 pb-6">
+        {lead && <div className="min-w-0 flex-[1_1_300px]">{lead}</div>}
+        <div className="min-w-0 flex-[1_1_440px]">{map}</div>
+        <div className="min-w-0 flex-[1_1_420px]">{aside}</div>
       </div>
       <div id="analyse" className="scroll-mt-6">
         {chart}
@@ -698,9 +702,9 @@ function Legend({ mode }: { mode: Mode }) {
   const items: [string, string][] =
     mode === "delta"
       ? [
-          [deltaColor(-0.004), "Zeit gewonnen"],
+          [deltaColor(-0.004), "schneller"],
           [deltaColor(0), "gleich"],
-          [deltaColor(0.004), "Zeit verloren"],
+          [deltaColor(0.004), "langsamer"],
         ]
       : mode === "speed"
         ? [
@@ -732,11 +736,12 @@ function Legend({ mode }: { mode: Mode }) {
   );
 }
 
-/** Grün = Zeit gewonnen, grau = gleich, rot = Zeit verloren. Wert = Sekunden pro Meter. */
+/** Blau = schneller, grau = gleich, orange = langsamer. Wert = Sekunden pro Meter. */
 function deltaColor(rate: number) {
   const f = Math.max(-1, Math.min(1, rate / 0.003));
-  if (Math.abs(f) < 0.08) return "hsl(215 12% 45%)";
-  return f > 0 ? `hsl(2 ${55 + 30 * f}% ${45 + 12 * f}%)` : `hsl(150 ${55 - 30 * f}% ${42 - 10 * f}%)`;
+  if (Math.abs(f) < 0.08) return "#4a525e";
+  // Racing-Design: orange = langsamer, blau = schneller, je kräftiger desto mehr
+  return f > 0 ? `hsl(24 ${60 + 40 * f}% ${38 + 24 * f}%)` : `hsl(207 ${50 - 50 * f}% ${40 - 28 * f}%)`;
 }
 
 function speedColor(kmh: number) {

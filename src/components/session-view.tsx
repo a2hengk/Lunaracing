@@ -8,7 +8,8 @@ import { StintReport } from "@/components/stint-report";
 import { StrategyCalc } from "@/components/strategy-calc";
 import { TrackHistory } from "@/components/track-history";
 import type { SessionListItem } from "@/lib/data-types";
-import { formatDate, formatSector, sessionTypeDe } from "@/lib/format";
+import { formatDate, formatSector, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
+import { SessionHero } from "@/components/session-hero";
 import { theoreticalBest } from "@/lib/analysis/best";
 import { splitStints } from "@/lib/analysis/stints";
 import { cornerStats, detectCorners } from "@/lib/analysis/corners";
@@ -53,7 +54,12 @@ export function SessionView({
   const outline = useMemo(() => buildOutline(lapSamples(best), 10), [best]);
 
   // Referenz aus einer anderen Session (deren Bestrunde), null = Runde aus dieser Session
-  const [ext, setExt] = useState<{ slug: string; label: string; points: ReturnType<typeof resampleByDistance> } | null>(null);
+  const [ext, setExt] = useState<{
+    slug: string;
+    label: string;
+    lap: StoredLap;
+    points: ReturnType<typeof resampleByDistance>;
+  } | null>(null);
   const [loadingRef, setLoadingRef] = useState<string | null>(null);
   const [refError, setRefError] = useState<string | null>(null);
   const pickExternal = async (s: SessionListItem) => {
@@ -66,6 +72,7 @@ export function SessionView({
       setExt({
         slug: s.slug,
         label: `${sessionTypeDe(s.sessionType)} ${formatDate(s.recordedAt).split(",")[0]} R${body.lap.lap}`,
+        lap: body.lap,
         points: resampleByDistance(lapSamples(body.lap), STEP_M),
       });
     } catch {
@@ -111,6 +118,47 @@ export function SessionView({
   const lapName = (n: number) => (session.laps.find((l) => l.lap === n)?.start ? "Startrunde" : `Runde ${n}`);
   const labels = { reference: ext?.label ?? lapName(refLap), compare: lapName(cmpLap) };
 
+  // Für den Überblick oben links
+  const refStored = ext?.lap ?? session.laps.find((l) => l.lap === refLap)!;
+  const cmpStored = session.laps.find((l) => l.lap === cmpLap)!;
+  const aids = session.laps.at(0)?.aids;
+  const w = session.weather;
+  const hero = (
+    <SessionHero
+      track={shortTrack(session.track)}
+      subtitle={`${sessionTypeDe(session.sessionType)} am ${longDate(session.recordedAt)}`}
+      labels={labels}
+      refIsBest={!ext && refLap === best.lap}
+      deltaS={(cmpStored.timeMs - refStored.timeMs) / 1000}
+      sectorsS={[0, 1, 2].map((i) => {
+        const c = cmpStored.sectorsMs.at(i) ?? 0;
+        const r = refStored.sectorsMs.at(i) ?? 0;
+        return c > 0 && r > 0 ? (c - r) / 1000 : null;
+      })}
+      times={{ compareMs: cmpStored.timeMs, referenceMs: refStored.timeMs }}
+      corners={cornerRows}
+      facts={(
+        [
+          ["Auto", joinParts(session.car, session.carClass)],
+          ["Strecke", joinParts(shortLayout(session.track, session.layout), w.trackC !== undefined && `${w.trackC} °C`)],
+          ["Luft", w.ambientC !== undefined ? `${w.ambientC} °C` : ""],
+          [
+            "Fahrhilfen",
+            aids
+              ? joinParts(
+                  aids.tcLevel !== undefined && `TC ${aids.tcLevel}`,
+                  aids.absLevel !== undefined && `ABS ${aids.absLevel}`,
+                  aids.engineMap !== undefined && `Map ${aids.engineMap}`,
+                  aids.brakeBiasFront !== undefined &&
+                    `Bremsbalance ${aids.brakeBiasFront.toLocaleString("de-DE", { maximumFractionDigits: 1 })} % vorne`,
+                )
+              : "",
+          ],
+        ] as [string, string][]
+      ).filter(([, v]) => v)}
+    />
+  );
+
   const stints = useMemo(() => splitStints(session.laps), [session]);
   // Startwerte für den Rechner: Durchschnitt aller Runden ohne Boxengasse und ohne Startrunde
   const raceBase = useMemo(() => {
@@ -133,84 +181,118 @@ export function SessionView({
 
   const ideal = theoreticalBest(session.laps);
 
+  // Sektorfarben wie im Design: lila = Session-Bestzeit, grün = höchstens 0,2 s dahinter, gelb = mehr
+  const sectorTone = (ms: number, i: number) => {
+    const bestMs = bestSectors.at(i)!;
+    if (!(ms > 0) || !Number.isFinite(bestMs)) return "border-transparent text-muted";
+    if (ms === bestMs) return "border-best font-bold text-best";
+    return ms - bestMs <= 200 ? "border-near text-near" : "border-far text-far";
+  };
+
   const lapTable = (
-    <section className="overflow-x-auto rounded-xl border border-line bg-panel">
-      <table className="w-full min-w-[560px] text-sm">
-        <thead className="text-left text-xs text-muted">
-          <tr className="border-b border-line">
-            <th className="px-3 py-2.5 font-medium">Runde</th>
-            <th className="px-3 py-2.5 font-medium">Zeit</th>
-            <th className="px-3 py-2.5 font-medium">S1</th>
-            <th className="px-3 py-2.5 font-medium">S2</th>
-            <th className="px-3 py-2.5 font-medium">S3</th>
-            <th className="px-3 py-2.5 text-right font-medium">Vergleich</th>
-          </tr>
-        </thead>
-        <tbody>
-          {session.laps.map((l) => (
-            <tr key={l.lap} className={`border-b border-line last:border-0 ${l.valid ? "" : "text-muted"}`}>
-              <td className="px-3 py-2.5">
-                {l.lap}
-                {l.start && (
-                  <span className="ml-2 text-xs text-muted" title="Erste Rennrunde ab dem Start, ohne Einführungsrunde">
-                    Start
-                  </span>
-                )}
-                {l === best && <span className="ml-2 text-xs text-accent">Bestzeit</span>}
-                {!l.valid && <span className="ml-2 text-xs">nicht gewertet</span>}
-              </td>
-              <td className="px-3 py-2.5 font-mono tabular-nums">{formatLapTime(l.timeMs)}</td>
-              {l.sectorsMs.map((s, i) => (
-                <td
-                  key={i}
-                  className={`px-3 py-2.5 font-mono tabular-nums ${s > 0 && s === bestSectors.at(i) ? "text-good" : ""}`}
+    <section className="rounded-xl bg-panel px-2 pt-2 pb-4">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[380px] border-collapse">
+          <caption className="px-2 pt-2.5 pb-3.5 text-left font-display text-[22px] font-semibold">Runden</caption>
+          <thead>
+            <tr className="text-left text-[13px] text-muted">
+              <th scope="col" className="px-2 pb-2 font-medium">Runde</th>
+              <th scope="col" className="px-2 pb-2 font-medium">Zeit</th>
+              <th scope="col" className="px-2 pb-2 font-medium">S1</th>
+              <th scope="col" className="px-2 pb-2 font-medium">S2</th>
+              <th scope="col" className="px-2 pb-2 font-medium">S3</th>
+              <th scope="col" className="px-2 pb-2 text-right font-medium">Vergleichen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {session.laps.map((l) => {
+              const isRef = !ext && refLap === l.lap;
+              const isCmp = cmpLap === l.lap;
+              return (
+                <tr
+                  key={l.lap}
+                  className={`border-t border-line ${isCmp ? "bg-accent/10" : isRef ? "bg-fg/[0.06]" : ""} ${l.valid ? "" : "text-muted"}`}
                 >
-                  {formatSector(s)}
-                </td>
-              ))}
-              <td className="px-3 py-2 text-right">
-                <div className="inline-flex gap-1 text-xs">
-                  <Pick
-                    active={!ext && refLap === l.lap}
-                    onClick={() => {
-                      setExt(null);
-                      setRefLap(l.lap);
-                    }}
-                    tone="ref"
+                  <td className="h-[46px] px-2 whitespace-nowrap">
+                    <span className="font-display text-lg font-semibold">{l.lap}</span>
+                    {l.start && (
+                      <span className="ml-2 text-xs text-muted" title="Erste Rennrunde ab dem Start, ohne Einführungsrunde">
+                        Start
+                      </span>
+                    )}
+                    {!l.valid && <span className="ml-2 text-xs">nicht gewertet</span>}
+                  </td>
+                  <td
+                    className={`px-2 font-display text-[19px] font-semibold ${l === best ? "text-best" : l.start ? "text-muted" : ""}`}
                   >
-                    Referenz
-                  </Pick>
-                  <Pick active={cmpLap === l.lap} onClick={() => setCmpLap(l.lap)} tone="accent">
-                    Vergleich
-                  </Pick>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        {ideal && (
-          <tfoot className="border-t border-line bg-bg/40 text-xs">
-            <tr>
-              <td className="px-3 py-2.5 text-muted" title="Summe der besten Sektoren aus gewerteten Runden">
-                Theoretisch
-              </td>
-              <td className="px-3 py-2.5 font-mono text-sm text-good tabular-nums">{formatLapTime(ideal.timeMs)}</td>
-              {ideal.sectors.map((sec, i) => (
-                <td key={i} className="px-3 py-2.5 text-muted">
-                  aus Runde {sec.lap}
-                  {ideal.bestLapLossMs.at(i)! > 0 && (
-                    <span className="ml-1.5 font-mono text-loss tabular-nums">+{(ideal.bestLapLossMs.at(i)! / 1000).toFixed(3)}</span>
-                  )}
+                    {formatLapTime(l.timeMs).replace(".", ",")}
+                  </td>
+                  {l.sectorsMs.map((ms, i) => (
+                    <td key={i} className="px-2 font-display text-[17px]">
+                      <span className={`border-b-2 pb-px ${l.start ? "border-transparent text-muted" : sectorTone(ms, i)}`}>
+                        {formatSector(ms).replace(".", ",")}
+                      </span>
+                    </td>
+                  ))}
+                  <td className="px-1.5 text-right whitespace-nowrap">
+                    <Pick
+                      active={isRef}
+                      onClick={() => {
+                        setExt(null);
+                        setRefLap(l.lap);
+                      }}
+                      tone="ref"
+                      label={`Runde ${l.lap} als Referenz`}
+                    >
+                      Ref
+                    </Pick>
+                    <Pick active={isCmp} onClick={() => setCmpLap(l.lap)} tone="accent" label={`Runde ${l.lap} vergleichen`}>
+                      Vgl
+                    </Pick>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          {ideal && (
+            <tfoot className="border-t border-line text-[13px]">
+              <tr>
+                <td className="px-2 pt-3 text-muted" title="Theoretische Bestzeit: Summe der besten Sektoren aus gewerteten Runden">
+                  Ideal
                 </td>
-              ))}
-              <td className="px-3 py-2.5 text-right text-muted">
-                Bestzeit {(ideal.bestLapMs - ideal.timeMs) / 1000 > 0 ? "verliert " : ""}
-                <span className="font-mono text-fg tabular-nums">{((ideal.bestLapMs - ideal.timeMs) / 1000).toFixed(3)} s</span>
-              </td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
+                <td className="px-2 pt-3 font-display text-[19px] font-semibold text-best">
+                  {formatLapTime(ideal.timeMs).replace(".", ",")}
+                </td>
+                {ideal.sectors.map((sec, i) => (
+                  <td key={i} className="px-2 pt-3 text-muted">
+                    R{sec.lap}
+                    {ideal.bestLapLossMs.at(i)! > 0 && (
+                      <span className="ml-1 font-display text-loss">+{(ideal.bestLapLossMs.at(i)! / 1000).toFixed(3).replace(".", ",")}</span>
+                    )}
+                  </td>
+                ))}
+                <td className="px-2 pt-3 text-right text-muted">
+                  −{((ideal.bestLapMs - ideal.timeMs) / 1000).toFixed(3).replace(".", ",")} s
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      <div className="flex flex-wrap gap-x-[18px] gap-y-1.5 px-2 pt-3.5 text-[13px] text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <i aria-hidden className="h-2.5 w-2.5 rounded-sm bg-best" />
+          Bestzeit der Session
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <i aria-hidden className="h-2.5 w-2.5 rounded-sm bg-near" />
+          höchstens 0,2 s dahinter
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <i aria-hidden className="h-2.5 w-2.5 rounded-sm bg-far" />
+          mehr als 0,2 s dahinter
+        </span>
+      </div>
     </section>
   );
 
@@ -230,6 +312,7 @@ export function SessionView({
           setRange(r);
           setActiveCorner(r ? (corners.find((c) => c.from === r.from && c.to === r.to)?.n ?? null) : null);
         }}
+        lead={hero}
         aside={
           <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
             {lapTable}
@@ -275,21 +358,35 @@ function Pick({
   active,
   onClick,
   tone,
+  label,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   tone: "ref" | "accent";
+  label: string;
   children: React.ReactNode;
 }) {
-  const on = tone === "ref" ? "bg-ref/20 text-fg" : "bg-accent/20 text-accent";
+  const on = tone === "ref" ? "border-fg bg-fg text-deep" : "border-accent bg-accent text-deep";
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-md px-2.5 py-1 transition ${active ? on : "text-muted hover:bg-bg hover:text-fg"}`}
+      aria-label={label}
+      className={`ml-1 min-h-9 min-w-11 rounded-md border text-[13px] font-semibold transition ${
+        active ? on : "border-line text-muted hover:text-fg"
+      }`}
     >
       {children}
     </button>
   );
+}
+
+/** 2026-11-03T19:57:59Z → „3. November 2026, 20:57“ */
+function longDate(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const day = new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" }).format(d);
+  const time = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(d);
+  return `${day}, ${time}`;
 }

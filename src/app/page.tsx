@@ -2,13 +2,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { listSessions } from "@/lib/data";
 import { SessionBrowser } from "@/components/session-browser";
+import { SiteHeader } from "@/components/site-header";
 
 export default function Home() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+      <SiteHeader />
       <header className="mb-8">
-        <p className="text-xs tracking-[0.2em] text-accent uppercase">lunaracing</p>
-        <h1 className="mt-1 text-2xl font-semibold">Sessions</h1>
+        <h1 className="font-display text-6xl leading-none font-bold">Sessions</h1>
         <p className="mt-1 text-sm text-muted">
           Importiert mit <code className="font-mono text-fg">npm run import</code> aus dem Telemetry-Ordner von LMU.
         </p>

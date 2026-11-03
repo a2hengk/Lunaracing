@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { LapAnalysis } from "@/components/lap-analysis";
+import { SiteHeader } from "@/components/site-header";
 import { demoSamples } from "@/lib/demo";
 import { deltaTrace, resampleByDistance } from "@/lib/telemetry/compare";
 import { fastestLap, formatLapTime, splitLaps } from "@/lib/telemetry/laps";
@@ -19,10 +19,10 @@ export default function Home() {
   const outline = buildOutline(best.samples, 10);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
+      <SiteHeader />
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link href="/" className="text-xs tracking-[0.2em] text-accent uppercase">lunaracing</Link>
           <h1 className="mt-1 text-2xl font-semibold">Demo-Strecke · GT3</h1>
           <p className="mt-1 text-sm text-muted">
             Erfundene Daten, bis der Import echter LMU-Dateien steht.
