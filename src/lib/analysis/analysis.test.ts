@@ -69,6 +69,15 @@ describe("cornerStats", () => {
     const steered = lap1.map((p) => ({ ...p, steering: 0.3 }));
     expect(cornerStats(steered, c, 5).trailBrakeM).toBeGreaterThan(0);
   });
+
+  it("mittelt den Abstand zum Vordermann, null wenn meist frei", () => {
+    const c = corners.at(0)!;
+    expect(cornerStats(lap1, c, 5).gapAhead).toBeNull(); // Demo hat keinen Abstand
+    const behind = lap1.map((p) => ({ ...p, gap: 0.4 }));
+    expect(cornerStats(behind, c, 5).gapAhead).toBeCloseTo(0.4);
+    const free = lap1.map((p, i) => ({ ...p, gap: i % 4 === 0 ? 0.4 : 0 }));
+    expect(cornerStats(free, c, 5).gapAhead).toBeNull();
+  });
 });
 
 describe("drivingStyle", () => {
@@ -93,5 +102,11 @@ describe("drivingStyle", () => {
     expect(s.throttleLifts).toBe(1);
     expect(s.trailBrakePct).toBe(100);
     expect(s.brakingPct).toBeCloseTo((5 / lap.length) * 100);
+    expect(s.closePct).toBeNull();
+  });
+
+  it("zählt den Anteil unter 1 s hinter einem Auto", () => {
+    const lap = Array.from({ length: 10 }, (_, i) => ({ ...point(i, 1, 0), gap: i < 3 ? 0.6 : i < 5 ? 1.5 : 0 }));
+    expect(drivingStyle(lap).closePct).toBeCloseTo(30);
   });
 });

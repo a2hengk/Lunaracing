@@ -60,13 +60,25 @@ export async function listSessions(): Promise<SessionListItem[]> {
 }
 
 /**
- * Eine Session mit allen Runden und Messwerten. Eine importierte Session ändert sich
- * nicht mehr, deshalb wird das Ergebnis dauerhaft gecacht.
+ * Eine Session mit allen Runden und Messwerten. Der Inhalt wird dauerhaft gecacht, mit dem
+ * Import-Zeitpunkt im Schlüssel: Wird eine Session neu importiert (`npm run import -- --neu`),
+ * gibt es einen neuen Schlüssel und die App lädt sie frisch.
  */
 export async function getSession(slug: string): Promise<SessionFile | null> {
+  await connection();
+  const [row] = await db
+    .select({ importedAt: sessions.importedAt })
+    .from(sessions)
+    .where(eq(sessions.slug, slug))
+    .limit(1);
+  if (!row) return null;
+  return loadSession(slug, row.importedAt.toISOString());
+}
+
+async function loadSession(slug: string, version: string): Promise<SessionFile | null> {
   "use cache";
   cacheLife("max");
-  cacheTag(`session-${slug}`);
+  cacheTag(`session-${slug}`, `session-${slug}-${version}`);
 
   const [head] = await db
     .select({

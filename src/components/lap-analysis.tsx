@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { DeltaPoint, DistPoint } from "@/lib/telemetry/compare";
-import type { Corner } from "@/lib/analysis/corners";
+import { CLOSE_GAP_S as GAP_CLOSE, type Corner } from "@/lib/analysis/corners";
 import { fitToBox, pointAtDistance, type OutlinePoint } from "@/lib/track/outline";
 
 type Mode = "delta" | "speed" | "inputs";
@@ -249,8 +249,14 @@ const LANES = {
   throttle: [166, 62],
   brake: [244, 62],
   delta: [322, 62],
+  gap: [400, 62],
 } as const;
-const H = 384;
+const H_BASE = 384;
+const H_GAP = 462;
+/** Abstand zum Vordermann wird bis 3 s gezeichnet, darüber gilt man als frei */
+const GAP_MAX = 3;
+/** 0..1 für die Spur: dicht dran = hoch, frei oder kein Auto vor dir = unten */
+const gapLevel = (g: number | undefined) => (g === undefined || g <= 0 ? 0 : 1 - Math.min(g, GAP_MAX) / GAP_MAX);
 
 function TelemetryChart({
   reference,
@@ -318,6 +324,10 @@ function TelemetryChart({
   const hCmp = hover !== null ? atDistance(compare, hover, stepM) : undefined;
   const hDelta = hover !== null ? atDistance(delta, hover, stepM) : undefined;
   const pct = (v: number | undefined) => (v === undefined ? "–" : `${Math.round(v * 100)} %`);
+  const hasGap = reference.some((p) => p.gap !== undefined) || compare.some((p) => p.gap !== undefined);
+  const H = hasGap ? H_GAP : H_BASE;
+  const gapText = (p: DistPoint | undefined) =>
+    p?.gap === undefined ? "–" : p.gap <= 0 ? "frei" : `${p.gap.toLocaleString("de-DE", { maximumFractionDigits: 1, minimumFractionDigits: 1 })} s`;
 
   const laneLabel = (key: keyof typeof LANES, text: string) => {
     const [top, h] = LANES[key];
@@ -349,10 +359,11 @@ function TelemetryChart({
           {laneLabel("throttle", "Gas")}
           {laneLabel("brake", "Bremse")}
           {laneLabel("delta", "Delta")}
+          {hasGap && laneLabel("gap", "Vordermann")}
         </div>
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="h-[420px] w-full cursor-crosshair touch-none select-none"
+          className={`${hasGap ? "h-[500px]" : "h-[420px]"} w-full cursor-crosshair touch-none select-none`}
           preserveAspectRatio="none"
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -374,7 +385,7 @@ function TelemetryChart({
           role="img"
           aria-label="Speed, Gas, Bremse und Delta über die Streckendistanz"
         >
-          {(["throttle", "brake", "delta"] as const).map((k) => (
+          {(hasGap ? (["throttle", "brake", "delta", "gap"] as const) : (["throttle", "brake", "delta"] as const)).map((k) => (
             <rect key={k} x={0} y={LANES[k][0]} width={W} height={LANES[k][1]} fill="var(--color-bg)" opacity={0.5} />
           ))}
 
@@ -392,6 +403,14 @@ function TelemetryChart({
           <line x1={0} x2={W} y1={lane("delta", (0 - dMin) / (dMax - dMin))} y2={lane("delta", (0 - dMin) / (dMax - dMin))} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
           <polyline points={path(del, (p: DeltaPoint) => lane("delta", (p.delta - dMin) / (dMax - dMin)))} fill="none" stroke="var(--color-loss)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
 
+          {hasGap && (
+            <>
+              <line x1={0} x2={W} y1={lane("gap", gapLevel(GAP_CLOSE))} y2={lane("gap", gapLevel(GAP_CLOSE))} stroke="var(--color-line)" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+              <polyline points={path(ref, (p: DistPoint) => lane("gap", gapLevel(p.gap)))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+              <polyline points={path(cmp, (p: DistPoint) => lane("gap", gapLevel(p.gap)))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+            </>
+          )}
+
           {drag && (
             <rect x={Math.min(X(drag.start), X(drag.end))} y={0} width={Math.abs(X(drag.end) - X(drag.start))} height={H} fill="var(--color-accent)" opacity={0.12} />
           )}
@@ -405,6 +424,12 @@ function TelemetryChart({
         <span>{zoomed ? "Ziehen zum weiteren Zoomen" : "Ziehen zum Zoomen"}</span>
         <span>{Math.round(view.to)} m</span>
       </div>
+      {hasGap && (
+        <p className="mt-1 pl-14 text-[11px] text-muted">
+          Vordermann: je höher, desto dichter dran. Über der gestrichelten Linie weniger als 1 s Abstand, also Windschatten
+          oder Verkehr. Unten heißt frei oder kein Auto vor dir.
+        </p>
+      )}
 
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-sm">
@@ -414,6 +439,7 @@ function TelemetryChart({
               <th className="py-1 pr-3 font-normal">Speed</th>
               <th className="py-1 pr-3 font-normal">Gas</th>
               <th className="py-1 pr-3 font-normal">Bremse</th>
+              {hasGap && <th className="py-1 pr-3 font-normal">Vordermann</th>}
               <th className="py-1 font-normal">Delta</th>
             </tr>
           </thead>
@@ -423,6 +449,7 @@ function TelemetryChart({
               <td className="py-1 pr-3">{hRef ? `${hRef.speed.toFixed(0)} km/h` : "–"}</td>
               <td className="py-1 pr-3">{pct(hRef?.throttle)}</td>
               <td className="py-1 pr-3">{pct(hRef?.brake)}</td>
+              {hasGap && <td className="py-1 pr-3">{gapText(hRef)}</td>}
               <td className="py-1" rowSpan={2}>
                 {hDelta
                   ? `${hDelta.delta >= 0 ? "+" : ""}${hDelta.delta.toFixed(3)} s`
@@ -434,6 +461,7 @@ function TelemetryChart({
               <td className="py-1 pr-3">{hCmp ? `${hCmp.speed.toFixed(0)} km/h` : "–"}</td>
               <td className="py-1 pr-3">{pct(hCmp?.throttle)}</td>
               <td className="py-1 pr-3">{pct(hCmp?.brake)}</td>
+              {hasGap && <td className="py-1 pr-3">{gapText(hCmp)}</td>}
             </tr>
           </tbody>
         </table>

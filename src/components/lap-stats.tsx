@@ -16,6 +16,8 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
       l.aids?.brakeBiasFront !== first?.brakeBiasFront,
   );
 
+  const hasGap = [...styles.values()].some((s) => s.closePct !== null);
+
   return (
     <section className="rounded-xl border border-line bg-panel p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
@@ -38,6 +40,11 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
               <th className="py-2 pr-3 font-medium" title="Anteil der Bremsstrecke, auf der gleichzeitig gelenkt wird">Trail-Braking</th>
               <th className="py-2 pr-3 font-medium" title="Meter ohne Gas und ohne Bremse">Rollen</th>
               <th className="py-2 pr-3 font-medium" title="Gas kurz zurückgenommen, ohne zu bremsen">Lupfer</th>
+              {hasGap && (
+                <th className="py-2 pr-3 font-medium" title="Anteil der Runde mit weniger als 1 s Abstand zum Auto vor dir">
+                  Dicht dran
+                </th>
+              )}
               <th className="py-2 pr-3 font-medium">ABS</th>
               <th className="py-2 pr-3 font-medium">TC</th>
               <th className="py-2 pr-3 font-medium">Sprit</th>
@@ -53,12 +60,20 @@ export function LapStats({ laps, styles }: { laps: StoredLap[]; styles: Map<numb
               const off = (l.offTrack ?? []).reduce((a, o) => a + (o.to - o.from), 0);
               return (
                 <tr key={l.lap} className={`border-b border-line last:border-0 ${l.valid ? "" : "text-muted"}`}>
-                  <td className="py-2 pr-3 font-sans">{l.lap}</td>
+                  <td className="py-2 pr-3 font-sans">
+                    {l.lap}
+                    {l.start && <span className="ml-1.5 text-xs text-muted">Start</span>}
+                  </td>
                   <td className="py-2 pr-3">{de(s?.fullThrottlePct)} %</td>
                   <td className="py-2 pr-3">{de(s?.brakingPct)} %</td>
                   <td className="py-2 pr-3">{de(s?.trailBrakePct)} %</td>
                   <td className="py-2 pr-3">{de(s?.coastM)} m</td>
                   <td className="py-2 pr-3">{s?.throttleLifts ?? "–"}</td>
+                  {hasGap && (
+                    <td className={`py-2 pr-3 ${(s?.closePct ?? 0) >= 30 ? "font-bold" : ""}`}>
+                      {s?.closePct == null ? "–" : `${de(s.closePct)} %`}
+                    </td>
+                  )}
                   <td className="py-2 pr-3">{de(l.aids?.absSeconds, 1)} s</td>
                   <td className="py-2 pr-3">{de(l.aids?.tcSeconds, 1)} s</td>
                   <td className="py-2 pr-3">{de(l.usage?.fuelL, 2)} L</td>

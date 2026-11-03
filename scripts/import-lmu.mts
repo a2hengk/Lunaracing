@@ -11,6 +11,9 @@
  *
  * Bereits importierte Dateien werden übersprungen. Dateien ohne eine ganze gefahrene
  * Runde (nur Out-Lap, abgebrochen) werden gemeldet und ausgelassen.
+ *
+ * Mit --neu werden schon importierte Dateien gelöscht und neu eingelesen, z. B. wenn der
+ * Import neue Werte kennt:  npm run import -- --neu "<pfad>\UserData\Telemetry"
  */
 import { config } from "dotenv";
 import { createHash } from "node:crypto";
@@ -18,11 +21,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { convertRecording } from "../src/lib/lmu/convert";
 import { readRecording } from "./lib/read-lmu.mjs";
-import { checkDb, connect, describeDbError, saveSession, sessionExists } from "./lib/save.mjs";
+import { checkDb, connect, deleteSession, describeDbError, saveSession, sessionExists } from "./lib/save.mjs";
 
 config({ path: [".env.local", ".env"], quiet: true });
 
-const arg = process.argv[2];
+const args = process.argv.slice(2);
+const reimport = args.includes("--neu");
+const arg = args.find((a) => !a.startsWith("--"));
 if (!arg) {
   console.error('Pfad fehlt. Beispiel: npm run import -- "C:\\...\\UserData\\Telemetry"');
   process.exit(1);
@@ -65,13 +70,16 @@ await db.$client.end();
 async function importFile(file: string) {
   const id = slug(basename(file, ".duckdb"));
   const hash = createHash("sha256").update(await readFile(file)).digest("hex");
-  if (await sessionExists(db, id, hash)) return { status: "skipped", message: "übersprungen (schon importiert)" };
+  if (await sessionExists(db, id, hash)) {
+    if (!reimport) return { status: "skipped", message: "übersprungen (schon importiert)" };
+    await deleteSession(db, id);
+  }
 
   const session = convertRecording(await readRecording(file), id);
   if (session.laps.length === 0) return { status: "skipped", message: "übersprungen (keine ganze Runde)" };
 
   await saveSession(db, session, basename(file), hash);
-  const laps = session.laps.map((l) => `${l.lap}${l.valid ? "" : "*"}`).join(", ");
+  const laps = session.laps.map((l) => `${l.start ? "Start" : l.lap}${l.valid ? "" : "*"}`).join(", ");
   return { status: "imported", message: `importiert, ${session.laps.length} Runden (${laps})` };
 }
 

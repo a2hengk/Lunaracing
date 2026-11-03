@@ -31,6 +31,13 @@ describe("splitStints", () => {
     expect(stints[0]!.fuelL).toBe(12);
   });
 
+  it("Startrunde zählt nicht für die Pace", () => {
+    const [s] = splitStints([lap(0, 125000, { start: true }), lap(1, 100000), lap(2, 101000)]);
+    expect(s!.laps.length).toBe(3);
+    expect(s!.avgMs).toBe(100500);
+    expect(s!.fuelL).toBe(12);
+  });
+
   it("trennt bei fehlenden Rundennummern", () => {
     expect(splitStints([lap(1, 1), lap(2, 1), lap(5, 1)]).length).toBe(2);
   });

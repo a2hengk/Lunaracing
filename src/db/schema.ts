@@ -83,6 +83,8 @@ export const laps = pgTable(
     fuelUsed: real("fuel_used"),
     tyreCompound: text("tyre_compound"),
     pit: boolean("pit").notNull().default(false),
+    /** erste Rennrunde ab dem Start */
+    isStart: boolean("is_start").notNull().default(false),
     usage: jsonb("usage").$type<StoredLap["usage"]>(),
     aids: jsonb("aids").$type<StoredLap["aids"]>(),
     tyres: jsonb("tyres").$type<StoredLap["tyres"]>(),

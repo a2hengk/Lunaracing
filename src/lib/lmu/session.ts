@@ -48,6 +48,8 @@ export type StoredLap = {
     engineMap?: number;
     brakeBiasFront?: number;
   };
+  /** true für die erste Rennrunde ab dem Start (Gedränge, stehender oder fliegender Start) */
+  start?: boolean;
   /** true, wenn das Auto in dieser Runde in der Boxengasse war (In- oder Out-Lap) */
   pit?: boolean;
   /** Durchschnitt über die Runde, pro Rad VL, VR, HL, HR */
@@ -69,12 +71,14 @@ export type StoredLap = {
     gear: number[];
     x: number[];
     z: number[];
+    /** Abstand zum Auto vor dir in s, 0 = keins vor dir. Fehlt bei älteren Importen. */
+    gap?: number[];
   };
 };
 
 /** Spaltenweise gespeicherte Runde zurück in Messpunkte. */
 export function lapSamples(lap: StoredLap): Sample[] {
-  const { t, d, speed, throttle, brake, steering, gear, x, z } = lap.data;
+  const { t, d, speed, throttle, brake, steering, gear, x, z, gap } = lap.data;
   return t.map((time, i) => ({
     t: time,
     lap: lap.lap,
@@ -86,6 +90,7 @@ export function lapSamples(lap: StoredLap): Sample[] {
     gear: gear.at(i)!,
     x: x.at(i)!,
     z: z.at(i)!,
+    gapAhead: gap?.at(i),
   }));
 }
 

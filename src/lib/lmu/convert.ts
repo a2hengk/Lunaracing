@@ -74,14 +74,26 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
 
   const laps: StoredLap[] = [];
   for (let k = 0; k < lapEvents.length - 1; k++) {
-    const start = lapEvents.at(k)!;
+    const counter = lapEvents.at(k)!;
     const finish = lapEvents.at(k + 1)!;
-    // Out-Lap aus der Box und abgeschnittene Runden überspringen
-    if (start.value === 0) continue;
-    if (finish.ts > end) continue;
+    if (finish.ts > end) continue; // abgeschnittene Runde am Ende
+    const official = lapTimes.find((e) => Math.abs(e.ts - finish.ts) < 0.05)?.value ?? 0;
+
+    // Rundenzähler 0: im Training die Out-Lap aus der Box (ohne Zeit, wird übersprungen).
+    // Im Rennen enthält er Einführungsrunde UND die erste gewertete Runde, LMU zählt erst
+    // danach hoch. Die Startrunde beginnt dann Rundenzeit vor ihrem Ende.
+    let isStart = false;
+    let startTs = counter.ts;
+    if (counter.value === 0) {
+      if (official <= 0) continue;
+      const realStart = finish.ts - official;
+      if (realStart < raw.t0) continue;
+      startTs = realStart;
+      isStart = true;
+    }
+    const start = { ts: startTs, value: counter.value };
 
     const measured = finish.ts - start.ts;
-    const official = lapTimes.find((e) => Math.abs(e.ts - finish.ts) < 0.05)?.value ?? 0;
     const valid = official > 0;
     const timeS = valid ? official : measured;
 
@@ -100,6 +112,8 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
 
     const startDist = at(lapDistCh, start.ts);
     const data: StoredLap["data"] = { t: [], d: [], speed: [], throttle: [], brake: [], steering: [], gear: [], x: [], z: [] };
+    const gapCh = raw.channels["Time Behind Next"];
+    if (gapCh?.values.length) data.gap = [];
     const n = Math.floor(measured * OUT_HZ);
     for (let i = 0; i <= n; i++) {
       const t = i === n ? finish.ts : start.ts + i / OUT_HZ;
@@ -112,6 +126,8 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
       data.gear.push(step(gears, t));
       data.x.push(round((at(lon, t) - lon0) * mPerDegLon, 1));
       data.z.push(round((at(lat, t) - lat0) * mPerDegLat, 1));
+      // LMU schreibt den Abstand zum Vordermann negativ. 0 = kein Auto vor dir (Führung, Training).
+      if (data.gap && gapCh) data.gap.push(round(Math.abs(at(gapCh, t)), 2));
     }
 
     laps.push({
@@ -119,6 +135,7 @@ export function convertRecording(raw: RawRecording, id: string): SessionFile {
       timeMs: Math.round(timeS * 1000),
       sectorsMs: sectors.map((s) => Math.round(s * 1000)) as [number, number, number],
       valid,
+      ...(isStart ? { start: true } : {}),
       usage: lapUsage(raw, start.ts, finish.ts),
       aids: lapAids(raw, start.ts, finish.ts, step),
       offTrack: lapOffTrack(raw, start.ts, finish.ts, (t) => at(lapDistCh, t) - startDist),

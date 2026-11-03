@@ -90,7 +90,12 @@ export type CornerStats = {
   coastM: number;
   /** Zeit von from bis to in s */
   time: number;
+  /** durchschnittlicher Abstand zum Vordermann in der Kurve in s, null = frei oder unbekannt */
+  gapAhead: number | null;
 };
+
+/** Unter diesem Abstand zum Vordermann gilt eine Kurve als „dicht dran“ (Verkehr/Windschatten) */
+export const CLOSE_GAP_S = 1;
 
 const BRAKE_ON = 0.05;
 const STEER_ON = 0.05;
@@ -152,7 +157,15 @@ export function cornerStats(lap: DistPoint[], c: Corner, stepM: number): CornerS
     trailBrakeM,
     coastM,
     time: (seg.at(-1)?.time ?? 0) - (seg.at(0)?.time ?? 0),
+    gapAhead: avgGap(seg),
   };
+}
+
+/** Mittlerer Abstand zum Vordermann, nur über Punkte mit einem Auto vor dir. */
+function avgGap(seg: DistPoint[]): number | null {
+  const gaps = seg.map((p) => p.gap).filter((g): g is number => g !== undefined && g > 0);
+  if (gaps.length < seg.length / 2) return null; // meist frei oder keine Daten
+  return gaps.reduce((a, b) => a + b, 0) / gaps.length;
 }
 
 function smooth(values: number[], radius: number): number[] {

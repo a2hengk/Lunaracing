@@ -32,6 +32,12 @@ Die Werte für `.env.local` gibt es im Vercel-Dashboard des Projekts unter **Sto
 
    Liest alle `.duckdb`-Dateien im Ordner, lädt die Runden in den Blob-Speicher und schreibt alles andere in die Datenbank. Schon importierte Dateien und Aufnahmen ohne ganze Runde werden übersprungen. Die Session ist danach sofort auf der Seite, ohne Commit oder Deploy.
 
+   Kennt der Import neue Werte (z. B. Startrunde und Abstand zum Vordermann), liest `--neu` schon importierte Dateien noch einmal ein:
+
+   ```bash
+   npm run import -- --neu "C:\Program Files (x86)\Steam\steamapps\common\Le Mans Ultimate\UserData\Telemetry"
+   ```
+
 Die `.duckdb`-Dateien selbst landen nie im Blob oder im Repo, nur die daraus berechneten Runden. In den Dateien stehen auch Steam-ID und Setup.
 
 ## Aufbau der LMU-Dateien
