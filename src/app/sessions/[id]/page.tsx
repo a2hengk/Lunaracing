@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SessionView } from "@/components/session-view";
+import { SiteHeader } from "@/components/site-header";
 import { getSession, listSessions } from "@/lib/data";
-import { formatDate, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
 
 type Params = PageProps<"/sessions/[id]">["params"];
 
@@ -11,10 +10,8 @@ type Params = PageProps<"/sessions/[id]">["params"];
 // sofort, und der Inhalt der Session kommt innerhalb der Suspense-Grenze dazu.
 export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
   return (
-    <main className="mx-auto w-full max-w-[1680px] px-4 py-8 sm:px-6 xl:px-8">
-      <Link href="/" className="text-xs tracking-[0.2em] text-accent uppercase">
-        lunaracing
-      </Link>
+    <main className="mx-auto w-full max-w-[1360px] px-4 pb-24 sm:px-6 xl:px-10">
+      <SiteHeader />
       <Suspense fallback={<SessionSkeleton />}>
         <SessionContent params={params} />
       </Suspense>
@@ -28,24 +25,8 @@ async function SessionContent({ params }: { params: Params }) {
   if (!session) notFound();
   const related = all.filter((s) => s.track === session.track && s.layout === session.layout);
 
-  const w = session.weather;
   return (
     <>
-      <header className="mb-6">
-        <h1 className="mt-1 text-2xl font-semibold">
-          {shortTrack(session.track)} · {session.carClass}
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          {joinParts(
-            shortLayout(session.track, session.layout),
-            session.car,
-            sessionTypeDe(session.sessionType),
-            formatDate(session.recordedAt),
-            w.ambientC !== undefined && `Luft ${w.ambientC} °C`,
-            w.trackC !== undefined && `Strecke ${w.trackC} °C`,
-          )}
-        </p>
-      </header>
       <SessionView session={session} related={related} />
     </>
   );

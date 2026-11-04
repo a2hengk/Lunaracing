@@ -37,8 +37,8 @@ export function TrackHistory({
 
   if (timed.length <= 1) {
     return (
-      <section className="rounded-xl border border-line bg-panel p-4 text-sm text-muted">
-        <h2 className="mb-2 text-sm font-semibold tracking-wide uppercase">Bestzeiten auf {shortTrack(track)}</h2>
+      <section className="rounded-xl bg-panel p-4 text-sm text-muted">
+        <h2 className="mb-2 font-display text-[22px] font-semibold text-fg">Bestzeiten auf {shortTrack(track)}</h2>
         Noch keine andere Session auf dieser Strecke. Sobald du hier wieder fährst, siehst du deinen Verlauf und kannst
         gegen ältere Runden vergleichen.
       </section>
@@ -46,12 +46,12 @@ export function TrackHistory({
   }
 
   return (
-    <section className="rounded-xl border border-line bg-panel p-4">
+    <section className="rounded-xl bg-panel p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Bestzeiten auf {shortTrack(track)}</h2>
+        <h2 className="font-display text-[22px] font-semibold">Bestzeiten auf {shortTrack(track)}</h2>
         {pb !== undefined && pbSession && (
           <span className="text-xs text-muted">
-            PB mit {car}: <span className="font-mono text-good tabular-nums">{formatLapTime(pb)}</span> ·{" "}
+            PB mit {car}: <span className="font-mono text-best">{formatLapTime(pb)}</span> ·{" "}
             {sessionTypeDe(pbSession.sessionType)} {formatDate(pbSession.recordedAt)}
           </span>
         )}
@@ -71,7 +71,7 @@ export function TrackHistory({
                 <span className="text-xs text-muted">{formatDate(s.recordedAt)}</span>
                 {s.car !== car && <span className="text-xs text-muted">{s.car}</span>}
                 <span className="ml-auto font-mono tabular-nums">{formatLapTime(s.bestMs!)}</span>
-                <span className={`w-16 text-right font-mono text-xs tabular-nums ${gap === 0 ? "text-good" : "text-muted"}`}>
+                <span className={`w-16 text-right font-mono text-xs tabular-nums ${gap === 0 ? "text-best" : "text-muted"}`}>
                   {gap === 0 ? "PB" : `+${(gap / 1000).toFixed(3)}`}
                 </span>
                 {isCurrent ? (
@@ -124,7 +124,7 @@ function PbChart({ sessions, current }: { sessions: SessionListItem[]; current: 
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-28 w-full" role="img" aria-label="Bestzeit pro Session über die Zeit">
-      <polyline points={step.join(" ")} fill="none" stroke="var(--color-good)" strokeWidth={1.5} strokeDasharray="4 3" />
+      <polyline points={step.join(" ")} fill="none" stroke="var(--color-best)" strokeWidth={1.5} strokeDasharray="4 3" />
       {sessions.map((s, i) => (
         <g key={s.slug}>
           <title>

@@ -30,18 +30,20 @@ export function LapStats({
   const hasGap = laps.some((l) => l.data.gap?.some((g) => g > 0));
 
   return (
-    <section className="rounded-xl border border-line bg-panel p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Fahrstil & Verbrauch</h2>
+    <section className="flex flex-wrap gap-x-10 gap-y-6 border-t border-line py-10">
+      <div className="flex-[0_1_220px]">
+        <h2 className="font-display text-[30px] leading-tight font-semibold">Fahrstil & Verbrauch</h2>
+        <p className="mt-2 text-sm text-muted">Pro Runde, über die Distanz gerechnet. Darunter der Rechner fürs Rennen.</p>
         {first && (
-          <span className="text-xs text-muted">
+          <p className="mt-3 text-sm text-muted">
             TC {first.tcLevel ?? "–"} · ABS {first.absLevel ?? "–"} · Map {first.engineMap ?? "–"} · Bremsbalance{" "}
             {de(first.brakeBiasFront, 1)} % vorne
             {settingsChanged && " · in einzelnen Runden verstellt"}
-          </span>
+          </p>
         )}
       </div>
-      <div className="overflow-x-auto">
+      <div className="min-w-0 flex-[999_1_640px]">
+      <div className="overflow-x-auto rounded-xl bg-panel px-3 py-2">
         <table className="w-full min-w-[860px] text-sm">
           <thead className="text-left text-xs text-muted">
             <tr className="border-b border-line">
@@ -107,7 +109,8 @@ export function LapStats({
           </tbody>
         </table>
       </div>
-      {children && <div className="mt-4 border-t border-line pt-4">{children}</div>}
+      {children && <div className="mt-6 rounded-xl bg-panel p-4">{children}</div>}
+      </div>
     </section>
   );
 }
