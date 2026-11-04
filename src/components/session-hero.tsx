@@ -19,7 +19,10 @@ export function SessionHero({
   times,
   corners,
   facts,
+  onChangeLaps,
 }: {
+  /** Handy: öffnet die Rundenliste, um Vergleich oder Referenz zu wechseln */
+  onChangeLaps?: () => void;
   track: string;
   subtitle: string;
   labels: { reference: string; compare: string };
@@ -94,6 +97,25 @@ export function SessionHero({
           </span>
         </div>
       </div>
+
+      {onChangeLaps && (
+        <div className="grid grid-cols-2 gap-2 lg:hidden">
+          <button
+            onClick={onChangeLaps}
+            className="flex min-h-16 flex-col items-start gap-0.5 rounded-xl border border-accent bg-accent/10 px-3 py-2.5 text-left"
+          >
+            <span className="text-xs text-muted">Vergleich ändern</span>
+            <span className="font-display text-xl font-semibold">{labels.compare}</span>
+          </button>
+          <button
+            onClick={onChangeLaps}
+            className="flex min-h-16 flex-col items-start gap-0.5 rounded-xl border border-same bg-fg/5 px-3 py-2.5 text-left"
+          >
+            <span className="text-xs text-muted">Referenz ändern</span>
+            <span className="font-display text-xl font-semibold">{labels.reference}</span>
+          </button>
+        </div>
+      )}
 
       {facts.length > 0 && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-line pt-5 text-sm">

@@ -64,9 +64,12 @@ export function fitToBox(
   outline: OutlinePoint[],
   maxWidth: number,
   maxHeight = maxWidth,
-  pad = 16,
+  /** Rand in px, getrennt für links/rechts und oben/unten möglich (Platz für Beschriftungen) */
+  pad: number | { x: number; y: number } = 16,
   mirror = true,
 ): Projection {
+  const px = typeof pad === "number" ? pad : pad.x;
+  const py = typeof pad === "number" ? pad : pad.y;
   const xs = outline.map((p) => p.x);
   const zs = outline.map((p) => p.z);
   const minX = Math.min(...xs);
@@ -75,13 +78,13 @@ export function fitToBox(
   const maxZ = Math.max(...zs);
   const spanX = maxX - minX || 1;
   const spanZ = maxZ - minZ || 1;
-  const scale = Math.min((maxWidth - 2 * pad) / spanX, (maxHeight - 2 * pad) / spanZ);
+  const scale = Math.min((maxWidth - 2 * px) / spanX, (maxHeight - 2 * py) / spanZ);
   return {
-    width: Math.round(spanX * scale + 2 * pad),
-    height: Math.round(spanZ * scale + 2 * pad),
+    width: Math.round(spanX * scale + 2 * px),
+    height: Math.round(spanZ * scale + 2 * py),
     project: (p) => [
-      pad + (p.x - minX) * scale,
-      pad + (mirror ? maxZ - p.z : p.z - minZ) * scale,
+      px + (p.x - minX) * scale,
+      py + (mirror ? maxZ - p.z : p.z - minZ) * scale,
     ],
   };
 }

@@ -29,6 +29,8 @@ type Props = {
   aside?: ReactNode;
   /** Inhalt links vor der Karte (Session-Überblick), nur zusammen mit aside */
   lead?: ReactNode;
+  /** Distanzen, an denen Sektor 1 und 2 enden, für die Linien in der Telemetrie */
+  sectorEnds?: number[];
 };
 
 export type Range = { from: number; to: number };
@@ -46,6 +48,7 @@ export function LapAnalysis({
   onRange,
   aside,
   lead,
+  sectorEnds = [],
 }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [ownRange, setOwnRange] = useState<Range | null>(null);
@@ -88,6 +91,8 @@ export function LapAnalysis({
       onZoom={setRange}
       hover={hover}
       onHover={setHover}
+      corners={corners}
+      sectorEnds={sectorEnds}
     />
   );
 
@@ -150,7 +155,7 @@ function TrackMap({
   const [mode, setMode] = useState<Mode>("delta");
 
   // Rand groß genug für die Kurvennummern neben der Strecke
-  const proj = useMemo(() => fitToBox(outline, 560, 440, 34), [outline]);
+  const proj = useMemo(() => fitToBox(outline, 640, 640, { x: 104, y: 44 }), [outline]);
 
   // Wie viel Zeit pro Meter verloren oder gewonnen wird: die Steigung des Deltas über ca. 40 m
   const lossRate = useMemo(
@@ -204,6 +209,16 @@ function TrackMap({
     [segments, range, view],
   );
 
+  // dunkler Rand unter der farbigen Linie, wie im Design
+  const outlinePts = useMemo(() => outline.map((p) => proj.project(p).map(r2).join(",")).join(" "), [outline, proj]);
+
+  // Zeit pro Kurve aus dem Delta: die schlechteste bekommt auf der Karte ihr Delta dazu
+  const cornerDt = useMemo(() => {
+    const at = (d: number) => delta.at(Math.min(delta.length - 1, Math.max(0, Math.round(d / stepM))))?.delta ?? 0;
+    return new Map(corners.map((c) => [c.n, at(c.to) - at(c.from)]));
+  }, [corners, delta, stepM]);
+  const worstCorner = [...cornerDt.entries()].filter(([, dt]) => dt > 0.05).toSorted((a, b) => b[1] - a[1]).at(0)?.[0];
+
   // Kurvennummern neben die Strecke setzen, auf die Seite weg vom Streckenmittelpunkt
   const cornerLabels = useMemo(() => {
     const pts = outline.map((p) => proj.project(p));
@@ -224,7 +239,7 @@ function TrackMap({
         nx = -nx;
         ny = -ny;
       }
-      return { c, x: r2(mx + nx * 18), y: r2(my + ny * 18), mx: r2(mx), my: r2(my) };
+      return { c, x: r2(mx + nx * 26), y: r2(my + ny * 26), mx: r2(mx), my: r2(my), right: nx >= 0 };
     });
   }, [corners, outline, proj]);
 
@@ -319,22 +334,23 @@ function TrackMap({
     setRange({ from: Math.max(0, d - 300), to: Math.min(length, d + 200) });
 
   return (
-    <section className="rounded-xl border border-line bg-panel p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Strecke</h2>
-        <div className="flex flex-wrap gap-1 rounded-lg bg-bg p-1 text-xs">
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="sr-only">Strecke</h2>
+        <div role="group" aria-label="Strecke einfärben nach" className="flex max-w-full gap-0.5 overflow-x-auto rounded-lg bg-panel p-[3px] text-sm">
           {(
             [
               ["delta", "Delta"],
               ["speed", "Speed"],
-              ["inputs", "Gas/Bremse"],
-              ...(hasGap ? ([["gap", "Vordermann"]] as const) : []),
+              ["inputs", "Gas und Bremse"],
+              ...(hasGap ? ([["gap", "Verkehr"]] as const) : []),
             ] as const
           ).map(([m, label]) => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`rounded-md px-2.5 py-1 transition ${shown === m ? "bg-accent/20 text-accent" : "text-muted hover:text-fg"}`}
+              aria-pressed={shown === m}
+              className={`min-h-9 shrink-0 rounded-md px-3.5 transition ${shown === m ? "bg-line text-fg" : "text-muted hover:text-fg"}`}
             >
               {label}
             </button>
@@ -343,7 +359,7 @@ function TrackMap({
       </div>
       <svg
         viewBox={`0 0 ${proj.width} ${proj.height}`}
-        className="block max-h-[560px] w-full cursor-zoom-in touch-none"
+        className="block max-h-[640px] w-full cursor-zoom-in touch-none font-display"
         onPointerMove={(e) => setHover(nearestOnMap(e))}
         onPointerLeave={() => setHover(null)}
         onClick={(e) => {
@@ -353,9 +369,13 @@ function TrackMap({
         role="img"
         aria-label="Streckenkarte"
       >
+        <polyline points={outlinePts} fill="none" stroke="var(--color-deep)" strokeWidth={11} strokeLinejoin="round" strokeLinecap="round" />
         {segmentEls}
         {offTrackLines.map((o) => (
-          <polyline key={o.key} points={o.points} fill="none" stroke="hsl(30 95% 58%)" strokeWidth={11} strokeOpacity={0.45} strokeLinecap="round" />
+          <g key={o.key}>
+            <polyline points={o.points} fill="none" stroke="var(--color-fg)" strokeWidth={13} />
+            <polyline points={o.points} fill="none" stroke="var(--color-offtrack)" strokeWidth={13} strokeDasharray="3 3" />
+          </g>
         ))}
         <StartFinish outline={outline} project={proj.project} />
         {cornerLabels.map(
@@ -370,11 +390,38 @@ function TrackMap({
                 }}
               >
                 <title>{l.c.name ? `Kurve ${l.c.n}: ${l.c.name}` : `Kurve ${l.c.n}`}</title>
-                <line x1={l.mx} y1={l.my} x2={l.x} y2={l.y} stroke="var(--color-muted)" strokeWidth={1} />
-                <circle cx={l.x} cy={l.y} r={9} fill="var(--color-panel)" stroke="var(--color-muted)" strokeWidth={1} />
-                <text x={l.x} y={l.y + 3.5} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--color-fg)">
+                <line x1={l.mx} y1={l.my} x2={l.x} y2={l.y} stroke="var(--color-same)" strokeWidth={1} />
+                <circle
+                  cx={l.x}
+                  cy={l.y}
+                  r={12}
+                  fill={l.c.n === worstCorner ? "var(--color-loss)" : "var(--color-bg)"}
+                  stroke={l.c.n === worstCorner ? "var(--color-loss)" : "var(--color-muted)"}
+                  strokeWidth={1}
+                />
+                <text x={l.x} y={l.y + 5} textAnchor="middle" fontSize={14} fontWeight={700} fill={l.c.n === worstCorner ? "var(--color-bg)" : "var(--color-fg)"}>
                   {l.c.n}
                 </text>
+                {(l.c.name || l.c.n === worstCorner) && (
+                  <text
+                    x={l.right ? l.x + 17 : l.x - 17}
+                    y={l.y + 5}
+                    textAnchor={l.right ? "start" : "end"}
+                    fontSize={16}
+                    fontWeight={600}
+                    fill="var(--color-fg)"
+                    stroke="var(--color-bg)"
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                  >
+                    {l.c.name ?? ""}
+                    {l.c.n === worstCorner && (
+                      <tspan fill="var(--color-loss)">
+                        {l.c.name ? " " : ""}+{(cornerDt.get(l.c.n) ?? 0).toFixed(2).replace(".", ",")}
+                      </tspan>
+                    )}
+                  </text>
+                )}
               </g>
             ),
         )}
@@ -382,7 +429,7 @@ function TrackMap({
         {ahead && (
           <g>
             <circle cx={ahead[0]} cy={ahead[1]} r={6} fill={aheadColor} stroke="var(--color-bg)" strokeWidth={2.5} />
-            <text x={ahead[0] + 10} y={ahead[1] - 8} fontSize={10} fontWeight={600} fill={aheadColor} stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+            <text x={ahead[0] + 12} y={ahead[1] - 10} fontSize={14} fontWeight={600} fill={aheadColor} stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
               {trafficText(here)}
             </text>
           </g>
@@ -390,28 +437,41 @@ function TrackMap({
         {me && <circle cx={me[0]} cy={me[1]} r={7} fill="var(--color-accent)" stroke="var(--color-bg)" strokeWidth={3} />}
       </svg>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
         <button
           onClick={togglePlay}
-          className="rounded-md bg-accent/15 px-2.5 py-1 text-accent transition hover:bg-accent/25"
-          aria-label={playing ? "Wiedergabe anhalten" : "Runde abspielen"}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 font-semibold text-deep transition hover:brightness-110"
         >
-          {playing ? "❚❚ Pause" : playT >= lapTime ? "↻ Nochmal" : "▶ Weiter"}
+          {playing ? (
+            <svg aria-hidden width="12" height="14" viewBox="0 0 12 14"><path d="M1 1h3.5v12H1zM7.5 1H11v12H7.5z" fill="currentColor" /></svg>
+          ) : (
+            <svg aria-hidden width="12" height="14" viewBox="0 0 12 14"><path d="M1 1 L11 7 L1 13 Z" fill="currentColor" /></svg>
+          )}
+          {playing ? "Pause" : playT >= lapTime ? "Nochmal abspielen" : "Weiter"}
         </button>
-        <div className="flex gap-1 rounded-lg bg-bg p-0.5">
+        <div role="group" aria-label="Tempo" className="flex gap-0.5 rounded-lg bg-panel p-[3px]">
           {SPEEDS.map((v) => (
             <button
               key={v}
               onClick={() => setSpeed(v)}
-              className={`rounded-md px-2 py-0.5 transition ${speed === v ? "bg-accent/20 text-accent" : "text-muted hover:text-fg"}`}
+              aria-pressed={speed === v}
+              className={`min-h-[38px] min-w-10 rounded-md transition ${speed === v ? "bg-line text-fg" : "text-muted hover:text-fg"}`}
             >
               {v}×
             </button>
           ))}
         </div>
-        <span className="font-mono text-muted tabular-nums">
-          {byHover ? `bei ${Math.round(hover)} m` : `${clock(playT)} / ${clock(lapTime)}`}
+        <span className="font-display text-lg">
+          {byHover ? (
+            `bei ${Math.round(hover).toLocaleString("de-DE")} m`
+          ) : (
+            <>
+              {clock(playT)} <span className="text-muted">von {clock(lapTime)}</span>
+            </>
+          )}
         </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-muted">
         <span className="flex items-center gap-1.5 text-muted">
           <i className="h-2.5 w-2.5 rounded-full bg-accent" />
           {labels.compare}
@@ -430,26 +490,23 @@ function TrackMap({
         )}
       </div>
 
-      <Legend mode={shown} />
+      <Legend mode={shown} compare={labels.compare} offTrack={offTrack.length > 0} />
       {shown === "gap" && (
-        <p className="mt-2 text-[11px] text-muted">
+        <p className="text-xs text-muted">
           Abstand von {labels.compare} zum Auto vor dir. Rad an Rad = weniger als eine Wagenlänge (5 m), gerechnet aus
           Abstand und Speed.
         </p>
       )}
       {hasGap && (
-        <p className="mt-2 text-[11px] text-muted">
+        <p className="text-xs text-muted">
           Wo das Auto vor dir ist, ist geschätzt: LMU speichert nur den Abstand in Sekunden, die Position kommt aus deiner
           eigenen Runde.
         </p>
       )}
-      {offTrack.length > 0 && (
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted">
-          <i className="h-2 w-5 rounded-full" style={{ background: "hsl(30 95% 58% / 0.6)" }} />
-          {labels.compare} neben der Strecke (geschätzt aus Path Lateral und Track Edge)
-        </p>
-      )}
-      <p className="mt-2 text-[11px] text-muted">Klick auf die Strecke oder eine Kurvennummer zoomt die Telemetrie auf diese Stelle.</p>
+      <p className="text-xs text-muted">
+        Klick auf die Strecke oder eine Kurvennummer zoomt die Telemetrie auf diese Stelle.
+        {offTrack.length > 0 && " Neben der Strecke ist geschätzt aus Path Lateral und Track Edge."}
+      </p>
     </section>
   );
 }
@@ -485,6 +542,8 @@ const H = 384;
  */
 export const TelemetryChart = memo(function TelemetryChart({
   compact = false,
+  corners = [],
+  sectorEnds = [],
   reference,
   compare,
   delta,
@@ -509,6 +568,8 @@ export const TelemetryChart = memo(function TelemetryChart({
   hover: number | null;
   onHover: (d: number | null) => void;
   compact?: boolean;
+  corners?: Corner[];
+  sectorEnds?: number[];
 }) {
   const [drag, setDrag] = useState<{ start: number; end: number } | null>(null);
 
@@ -537,11 +598,6 @@ export const TelemetryChart = memo(function TelemetryChart({
   };
   const path = <T extends { dist: number }>(pts: T[], y: (p: T) => number) =>
     pts.map((p) => `${X(p.dist).toFixed(1)},${y(p).toFixed(1)}`).join(" ");
-  const area = (pts: DistPoint[], key: "throttle" | "brake") => {
-    const [top, h] = LANES[key];
-    if (pts.length === 0) return "";
-    return `${X(pts.at(0)!.dist)},${top + h} ${path(pts, (p: DistPoint) => lane(key, p[key]))} ${X(pts.at(-1)!.dist)},${top + h}`;
-  };
 
   const toDist = (e: React.PointerEvent<SVGSVGElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -555,129 +611,232 @@ export const TelemetryChart = memo(function TelemetryChart({
   const pct = (v: number | undefined) => (v === undefined ? "–" : `${Math.round(v * 100)} %`);
   const hasGap = reference.some((p) => (p.gap ?? 0) > 0) || compare.some((p) => (p.gap ?? 0) > 0);
 
+  const yPct = (y: number) => `${(y / H) * 100}%`;
+  const xPct = (d: number) => `${((d - view.from) / span) * 100}%`;
+  const visible = (d: number) => d >= view.from && d <= view.to;
   const laneLabel = (key: keyof typeof LANES, text: string) => {
     const [top, h] = LANES[key];
     return (
-      <span className="absolute left-0 text-[11px] text-muted" style={{ top: `${((top + h / 2) / H) * 100}%`, transform: "translateY(-50%)" }}>
+      <span className="absolute right-2 text-xs text-muted" style={{ top: yPct(top + h / 2), transform: "translateY(-50%)" }}>
         {text}
       </span>
     );
   };
 
-  const Box = compact ? "div" : "section";
-  return (
-    <Box className={compact ? "" : "rounded-xl border border-line bg-panel p-4"}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {!compact && <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Telemetrie</h2>}
-        <div className="flex items-center gap-4 text-xs">
-          <span className="flex items-center gap-1.5"><i className="h-0.5 w-4 bg-ref" />{labels.reference}</span>
-          <span className="flex items-center gap-1.5"><i className="h-0.5 w-4 bg-accent" />{labels.compare}</span>
-          {zoomed && !compact && (
-            <button onClick={() => onZoom(null)} className="rounded-md bg-bg px-2.5 py-1 text-muted transition hover:text-fg">
-              Ganze Runde
-            </button>
-          )}
-        </div>
-      </div>
+  // Gitter für km/h alle 50, beschriftet links
+  const ticks: number[] = [];
+  for (let v = Math.ceil((sMin + 20) / 50) * 50; v <= sMax; v += 50) ticks.push(v);
+  const sY = (v: number) => lane("speed", (v - sMin) / (sMax - sMin));
+  const zeroY = lane("delta", (0 - dMin) / (dMax - dMin));
+  const deltaPts = path(del, (p: DeltaPoint) => lane("delta", (p.delta - base - dMin) / (dMax - dMin)));
+  const deltaArea =
+    del.length > 0 ? `${X(del.at(0)!.dist).toFixed(1)},${zeroY} ${deltaPts} ${X(del.at(-1)!.dist).toFixed(1)},${zeroY}` : "";
+  const [dTop, dH] = LANES.delta;
 
+  // Zeit pro Kurve aus dem Delta, die schlechteste wird orange beschriftet
+  const dAt = (d: number) => atDistance(delta, d, stepM)?.delta ?? 0;
+  const worst = corners
+    .map((c) => ({ c, dt: dAt(c.to) - dAt(c.from) }))
+    .filter((x) => x.dt > 0.05)
+    .toSorted((a, b) => b.dt - a.dt)
+    .at(0)?.c.n;
+  const hoverCorner = hover !== null ? corners.find((c) => hover >= c.from && hover < c.to) : undefined;
+  const sectorStarts = [0, ...sectorEnds];
+  const de = (v: number, d = 0) => v.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  const chart = (
+    <div className="min-w-0 flex-[999_1_640px]">
       <div className="flex gap-2">
-        <div className="relative w-12 shrink-0">
-          {laneLabel("speed", "km/h")}
+        <div className="relative w-14 shrink-0">
+          {ticks.map((v) => (
+            <span key={v} className="absolute right-2 text-xs text-muted" style={{ top: yPct(sY(v)), transform: "translateY(-50%)" }}>
+              {v}
+            </span>
+          ))}
           {laneLabel("throttle", "Gas")}
           {laneLabel("brake", "Bremse")}
           {laneLabel("delta", "Delta")}
         </div>
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className={`${compact ? "h-[300px]" : "h-[420px]"} w-full cursor-crosshair touch-none select-none`}
-          preserveAspectRatio="none"
-          onPointerDown={(e) => {
-            if (compact) return;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            const d = toDist(e);
-            setDrag({ start: d, end: d });
-          }}
-          onPointerMove={(e) => {
-            const d = toDist(e);
-            onHover(d);
-            if (drag) setDrag({ ...drag, end: d });
-          }}
-          onPointerUp={() => {
-            if (drag && Math.abs(drag.end - drag.start) > 20) {
-              onZoom({ from: Math.min(drag.start, drag.end), to: Math.max(drag.start, drag.end) });
-            }
-            setDrag(null);
-          }}
-          onPointerLeave={() => !drag && onHover(null)}
-          role="img"
-          aria-label="Speed, Gas, Bremse und Delta über die Streckendistanz"
-        >
-          {(["throttle", "brake", "delta"] as const).map((k) => (
-            <rect key={k} x={0} y={LANES[k][0]} width={W} height={LANES[k][1]} fill="var(--color-bg)" opacity={0.5} />
-          ))}
-
-          <polyline points={path(ref, (p: DistPoint) => lane("speed", (p.speed - sMin) / (sMax - sMin)))} fill="none" stroke="var(--color-ref)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-          <polyline points={path(cmp, (p: DistPoint) => lane("speed", (p.speed - sMin) / (sMax - sMin)))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-
-          <polygon points={area(cmp, "throttle")} fill="var(--color-good)" opacity={0.15} />
-          <polyline points={path(ref, (p: DistPoint) => lane("throttle", p.throttle))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
-          <polyline points={path(cmp, (p: DistPoint) => lane("throttle", p.throttle))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-
-          <polygon points={area(cmp, "brake")} fill="var(--color-loss)" opacity={0.15} />
-          <polyline points={path(ref, (p: DistPoint) => lane("brake", p.brake))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
-          <polyline points={path(cmp, (p: DistPoint) => lane("brake", p.brake))} fill="none" stroke="var(--color-accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-
-          <line x1={0} x2={W} y1={lane("delta", (0 - dMin) / (dMax - dMin))} y2={lane("delta", (0 - dMin) / (dMax - dMin))} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
-          <polyline points={path(del, (p: DeltaPoint) => lane("delta", (p.delta - base - dMin) / (dMax - dMin)))} fill="none" stroke="var(--color-loss)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-
-          {drag && (
-            <rect x={Math.min(X(drag.start), X(drag.end))} y={0} width={Math.abs(X(drag.end) - X(drag.start))} height={H} fill="var(--color-accent)" opacity={0.12} />
+        <div className="relative min-w-0 flex-1">
+          {!compact && sectorEnds.length > 0 && (
+            <div className="relative h-5 font-display text-[15px] font-semibold text-muted">
+              {sectorStarts.map((from, i) => {
+                const to = sectorStarts.at(i + 1) ?? length;
+                const mid = (Math.max(from, view.from) + Math.min(to, view.to)) / 2;
+                if (to < view.from || from > view.to) return null;
+                return (
+                  <span key={i} className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: xPct(mid) }}>
+                    Sektor {i + 1}
+                  </span>
+                );
+              })}
+            </div>
           )}
-          {hover !== null && hover >= view.from && hover <= view.to && (
-            <line x1={X(hover)} x2={X(hover)} y1={0} y2={H} stroke="var(--color-fg)" strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
-          )}
-        </svg>
-      </div>
-      <div className="mt-1 flex justify-between pl-14 text-[11px] text-muted">
-        <span>{Math.round(view.from)} m</span>
-        <span>{compact ? "" : zoomed ? "Ziehen zum weiteren Zoomen" : "Ziehen zum Zoomen"}</span>
-        <span>{Math.round(view.to)} m</span>
-      </div>
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className={`${compact ? "h-[300px]" : "h-[440px]"} w-full cursor-crosshair touch-none select-none`}
+            preserveAspectRatio="none"
+            onPointerDown={(e) => {
+              if (compact) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              const d = toDist(e);
+              setDrag({ start: d, end: d });
+            }}
+            onPointerMove={(e) => {
+              const d = toDist(e);
+              onHover(d);
+              if (drag) setDrag({ ...drag, end: d });
+            }}
+            onPointerUp={() => {
+              if (drag && Math.abs(drag.end - drag.start) > 20) {
+                onZoom({ from: Math.min(drag.start, drag.end), to: Math.max(drag.start, drag.end) });
+              }
+              setDrag(null);
+            }}
+            onPointerLeave={() => !drag && onHover(null)}
+            role="img"
+            aria-label={`Speed, Gas, Bremse und Delta von ${labels.compare} und ${labels.reference} über die Distanz`}
+          >
+            <defs>
+              <clipPath id={`above-${compact ? "c" : "m"}`}>
+                <rect x={0} y={dTop} width={W} height={Math.max(0, zeroY - dTop)} />
+              </clipPath>
+              <clipPath id={`below-${compact ? "c" : "m"}`}>
+                <rect x={0} y={zeroY} width={W} height={Math.max(0, dTop + dH - zeroY)} />
+              </clipPath>
+            </defs>
+            {(["throttle", "brake", "delta"] as const).map((k) => (
+              <rect key={k} x={0} y={LANES[k][0]} width={W} height={LANES[k][1]} fill="var(--color-panel)" />
+            ))}
+            {ticks.map((v) => (
+              <line key={v} x1={0} x2={W} y1={sY(v)} y2={sY(v)} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
+            ))}
+            {corners.filter((c) => visible(c.apex)).map((c) => (
+              <line key={c.n} x1={X(c.apex)} x2={X(c.apex)} y1={0} y2={H} stroke="var(--color-line)" vectorEffect="non-scaling-stroke" />
+            ))}
+            {sectorEnds.filter(visible).map((d) => (
+              <line key={d} x1={X(d)} x2={X(d)} y1={0} y2={H} stroke="var(--color-muted)" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+            ))}
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-[11px] text-muted">
-            <tr>
-              <th className="py-1 pr-3 font-normal">{hover !== null ? `bei ${Math.round(hover)} m` : "Maus über den Graph"}</th>
-              <th className="py-1 pr-3 font-normal">Speed</th>
-              <th className="py-1 pr-3 font-normal">Gas</th>
-              <th className="py-1 pr-3 font-normal">Bremse</th>
-              {hasGap && <th className="py-1 pr-3 font-normal">Vordermann</th>}
-              <th className="py-1 font-normal">Delta</th>
-            </tr>
-          </thead>
-          <tbody className="font-mono tabular-nums">
-            <tr>
-              <td className="py-1 pr-3 font-sans text-ref">{labels.reference}</td>
-              <td className="py-1 pr-3">{hRef ? `${hRef.speed.toFixed(0)} km/h` : "–"}</td>
-              <td className="py-1 pr-3">{pct(hRef?.throttle)}</td>
-              <td className="py-1 pr-3">{pct(hRef?.brake)}</td>
-              {hasGap && <td className="py-1 pr-3">{trafficText(hRef)}</td>}
-              <td className="py-1" rowSpan={2}>
-                {signed(hDelta ? hDelta.delta - base : (compact ? (del.at(-1)?.delta ?? 0) : (delta.at(-1)?.delta ?? 0)) - base)}
-              </td>
-            </tr>
-            <tr>
-              <td className="py-1 pr-3 font-sans text-accent">{labels.compare}</td>
-              <td className="py-1 pr-3">{hCmp ? `${hCmp.speed.toFixed(0)} km/h` : "–"}</td>
-              <td className="py-1 pr-3">{pct(hCmp?.throttle)}</td>
-              <td className="py-1 pr-3">{pct(hCmp?.brake)}</td>
-              {hasGap && <td className="py-1 pr-3">{trafficText(hCmp)}</td>}
-            </tr>
-          </tbody>
-        </table>
+            <polyline points={path(ref, (p: DistPoint) => sY(p.speed))} fill="none" stroke="var(--color-ref)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+            <polyline points={path(cmp, (p: DistPoint) => sY(p.speed))} fill="none" stroke="var(--color-accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+
+            <polyline points={path(ref, (p: DistPoint) => lane("throttle", p.throttle))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+            <polyline points={path(cmp, (p: DistPoint) => lane("throttle", p.throttle))} fill="none" stroke="var(--color-accent)" strokeWidth={1.75} vectorEffect="non-scaling-stroke" />
+
+            <polyline points={path(ref, (p: DistPoint) => lane("brake", p.brake))} fill="none" stroke="var(--color-ref)" strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+            <polyline points={path(cmp, (p: DistPoint) => lane("brake", p.brake))} fill="none" stroke="var(--color-accent)" strokeWidth={1.75} vectorEffect="non-scaling-stroke" />
+
+            <polygon points={deltaArea} fill="var(--color-loss)" fillOpacity={0.45} clipPath={`url(#above-${compact ? "c" : "m"})`} />
+            <polygon points={deltaArea} fill="var(--color-accent)" fillOpacity={0.5} clipPath={`url(#below-${compact ? "c" : "m"})`} />
+            <line x1={0} x2={W} y1={zeroY} y2={zeroY} stroke="var(--color-muted)" vectorEffect="non-scaling-stroke" />
+            <polyline points={deltaPts} fill="none" stroke="var(--color-loss)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+
+            {drag && (
+              <rect x={Math.min(X(drag.start), X(drag.end))} y={0} width={Math.abs(X(drag.end) - X(drag.start))} height={H} fill="var(--color-accent)" opacity={0.12} />
+            )}
+            {hover !== null && visible(hover) && (
+              <line x1={X(hover)} x2={X(hover)} y1={0} y2={H} stroke="var(--color-fg)" strokeOpacity={0.7} vectorEffect="non-scaling-stroke" />
+            )}
+          </svg>
+
+          {hover !== null && visible(hover) && (
+            <div
+              className="pointer-events-none absolute z-10 w-[210px] rounded-lg border border-line bg-deep px-3.5 py-2.5 text-[13px] shadow-lg"
+              style={{
+                top: compact ? "8px" : "28%",
+                ...(X(hover) / W > 0.62 ? { right: `calc(${(1 - X(hover) / W) * 100}% + 12px)` } : { left: `calc(${(X(hover) / W) * 100}% + 12px)` }),
+              }}
+            >
+              <div className="mb-1 font-display text-base font-semibold">
+                {hoverCorner?.name ?? (hoverCorner ? `Kurve ${hoverCorner.n}` : "Gerade")}, {de(Math.round(hover))} m
+              </div>
+              <div className="flex justify-between text-accent">
+                <span>{labels.compare}</span>
+                <span>{hCmp ? `${de(hCmp.speed)} km/h` : "–"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{labels.reference}</span>
+                <span>{hRef ? `${de(hRef.speed)} km/h` : "–"}</span>
+              </div>
+              <div className="flex justify-between text-muted">
+                <span>Gas / Bremse</span>
+                <span>
+                  {pct(hCmp?.throttle)} / {pct(hCmp?.brake)}
+                </span>
+              </div>
+              {hasGap && (
+                <div className="flex justify-between text-muted">
+                  <span>Vordermann</span>
+                  <span>{trafficText(hCmp)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted">Delta</span>
+                <span className={(hDelta?.delta ?? 0) - base > 0 ? "text-loss" : "text-accent"}>
+                  {signed((hDelta?.delta ?? 0) - base)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {!compact && (
+            <div className="relative mt-2 h-6 font-display text-sm font-semibold">
+              {corners.filter((c) => visible(c.apex)).map((c) => (
+                <span
+                  key={c.n}
+                  className={`absolute -translate-x-1/2 whitespace-nowrap ${c.n === worst ? "text-loss" : ""}`}
+                  style={{ left: xPct(c.apex) }}
+                >
+                  {c.name ?? c.n}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="mt-1 flex justify-between text-xs text-muted">
+            <span>{de(Math.round(view.from))} m</span>
+            <span>{compact ? "" : zoomed ? "Ziehen zoomt weiter" : "Ziehen zoomt auf einen Abschnitt"}</span>
+            <span>{de(Math.round(view.to))} m</span>
+          </div>
+        </div>
       </div>
-    </Box>
+    </div>
+  );
+
+  if (compact) return chart;
+  return (
+    <section className="flex flex-wrap gap-x-10 gap-y-6 border-t border-line py-10">
+      <div className="flex-[0_1_220px]">
+        <h2 className="font-display text-[30px] leading-tight font-semibold">Telemetrie</h2>
+        <p className="mt-2 text-sm text-muted">
+          Ziehen zoomt auf einen Abschnitt. Klick auf die Karte oder eine Kurvennummer springt zur Kurve.
+        </p>
+        <div className="mt-5 flex flex-col gap-2 text-sm">
+          <span className="inline-flex items-center gap-2.5">
+            <i aria-hidden className="h-[3px] w-[22px] bg-accent" />
+            {labels.compare}
+          </span>
+          <span className="inline-flex items-center gap-2.5">
+            <i aria-hidden className="h-0.5 w-[22px] bg-ref" />
+            {labels.reference}
+          </span>
+          <span className="inline-flex items-center gap-2.5 text-muted">
+            <i aria-hidden className="h-2.5 w-[22px] bg-loss/45" />
+            Delta: {labels.compare} langsamer
+          </span>
+          <span className="inline-flex items-center gap-2.5 text-muted">
+            <i aria-hidden className="h-2.5 w-[22px] bg-accent/50" />
+            Delta: {labels.compare} schneller
+          </span>
+        </div>
+        {zoomed && (
+          <button onClick={() => onZoom(null)} className="mt-5 min-h-11 rounded-lg bg-panel px-4 text-sm transition hover:bg-line">
+            Ganze Runde zeigen
+          </button>
+        )}
+      </div>
+      {chart}
+    </section>
   );
 });
 
@@ -695,16 +854,26 @@ function StartFinish({ outline, project }: { outline: OutlinePoint[]; project: (
   const len = Math.hypot(x2 - x1, y2 - y1) || 1;
   const nx = (-(y2 - y1) / len) * 10;
   const ny = ((x2 - x1) / len) * 10;
-  return <line x1={r2(x1 - nx)} y1={r2(y1 - ny)} x2={r2(x1 + nx)} y2={r2(y1 + ny)} stroke="var(--color-fg)" strokeWidth={3} />;
+  // Text auf die Seite, auf der das linke Ende der Linie liegt
+  const left = x1 - nx < x1 + nx ? [x1 - nx, y1 - ny] : [x1 + nx, y1 + ny];
+  return (
+    <g>
+      <line x1={r2(x1 - nx)} y1={r2(y1 - ny)} x2={r2(x1 + nx)} y2={r2(y1 + ny)} stroke="var(--color-fg)" strokeWidth={5} />
+      <line x1={r2(x1 - nx)} y1={r2(y1 - ny)} x2={r2(x1 + nx)} y2={r2(y1 + ny)} stroke="var(--color-deep)" strokeWidth={5} strokeDasharray="2.5 2.5" />
+      <text x={r2(left[0]! - 8)} y={r2(left[1]! + 5)} textAnchor="end" fontSize={14} fill="var(--color-muted)">
+        Start
+      </text>
+    </g>
+  );
 }
 
-function Legend({ mode }: { mode: Mode }) {
+function Legend({ mode, compare, offTrack }: { mode: Mode; compare: string; offTrack: boolean }) {
   const items: [string, string][] =
     mode === "delta"
       ? [
-          [deltaColor(-0.004), "schneller"],
+          [deltaColor(-0.004), `${compare} schneller`],
           [deltaColor(0), "gleich"],
-          [deltaColor(0.004), "langsamer"],
+          [deltaColor(0.004), `${compare} langsamer`],
         ]
       : mode === "speed"
         ? [
@@ -725,13 +894,23 @@ function Legend({ mode }: { mode: Mode }) {
             [inputColor({ throttle: 0, brake: 1 }), "Bremse"],
           ];
   return (
-    <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
+    <div className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-muted">
       {items.map(([c, l], i) => (
-        <span key={i} className="flex items-center gap-1.5">
-          <i className="h-2 w-5 rounded-full" style={{ background: c }} />
+        <span key={i} className="flex items-center gap-2">
+          <i aria-hidden className="h-1.5 w-[22px] rounded-full" style={{ background: c }} />
           {l}
         </span>
       ))}
+      {offTrack && (
+        <span className="flex items-center gap-2">
+          <i
+            aria-hidden
+            className="h-1.5 w-[22px]"
+            style={{ background: "repeating-linear-gradient(90deg, var(--color-offtrack) 0 4px, var(--color-fg) 4px 8px)" }}
+          />
+          neben der Strecke
+        </span>
+      )}
     </div>
   );
 }

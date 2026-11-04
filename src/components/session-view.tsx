@@ -11,6 +11,7 @@ import type { SessionListItem } from "@/lib/data-types";
 import { formatDate, formatSector, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
 import { SessionHero } from "@/components/session-hero";
 import { theoreticalBest } from "@/lib/analysis/best";
+import { distAtTime } from "@/lib/analysis/replay";
 import { splitStints } from "@/lib/analysis/stints";
 import { cornerStats, detectCorners } from "@/lib/analysis/corners";
 import { drivingStyle } from "@/lib/analysis/style";
@@ -87,6 +88,11 @@ export function SessionView({
   const delta = useMemo(() => deltaTrace(reference, compare), [reference, compare]);
 
   const [range, setRange] = useState<Range | null>(null);
+  const [lapsOpen, setLapsOpen] = useState(false);
+  const openLaps = () => {
+    setLapsOpen(true);
+    requestAnimationFrame(() => document.getElementById("runden")?.scrollIntoView({ behavior: "smooth" }));
+  };
   const [activeCorner, setActiveCorner] = useState<number | null>(null);
 
   // Kurven einmal aus der Bestrunde, damit die Nummern für alle Vergleiche gleich bleiben
@@ -118,6 +124,14 @@ export function SessionView({
   const lapName = (n: number) => (session.laps.find((l) => l.lap === n)?.start ? "Startrunde" : `Runde ${n}`);
   const labels = { reference: ext?.label ?? lapName(refLap), compare: lapName(cmpLap) };
 
+  // Wo Sektor 1 und 2 der Referenzrunde enden, für die Linien in der Telemetrie
+  const sectorEnds = useMemo(() => {
+    const ref = ext?.lap ?? session.laps.find((l) => l.lap === refLap);
+    const [s1 = 0, s2 = 0] = ref?.sectorsMs ?? [];
+    if (!(s1 > 0 && s2 > 0)) return [];
+    return [distAtTime(reference, s1 / 1000), distAtTime(reference, (s1 + s2) / 1000)];
+  }, [ext, session, refLap, reference]);
+
   // Für den Überblick oben links
   const refStored = ext?.lap ?? session.laps.find((l) => l.lap === refLap)!;
   const cmpStored = session.laps.find((l) => l.lap === cmpLap)!;
@@ -137,6 +151,7 @@ export function SessionView({
       })}
       times={{ compareMs: cmpStored.timeMs, referenceMs: refStored.timeMs }}
       corners={cornerRows}
+      onChangeLaps={openLaps}
       facts={(
         [
           ["Auto", joinParts(session.car, session.carClass)],
@@ -190,7 +205,17 @@ export function SessionView({
   };
 
   const lapTable = (
-    <section className="rounded-xl bg-panel px-2 pt-2 pb-4">
+    <section id="runden" className="scroll-mt-4 rounded-xl bg-panel px-2 pt-2 pb-4">
+      {/* Handy: Runden zugeklappt wie im Design, ab lg immer offen */}
+      <button
+        onClick={() => setLapsOpen((v) => !v)}
+        aria-expanded={lapsOpen}
+        className="flex min-h-14 w-full items-center justify-between px-2 lg:hidden"
+      >
+        <span className="font-display text-xl font-semibold">Alle {session.laps.length} Runden</span>
+        <span className="text-sm text-muted">Bestzeit {formatLapTime(best.timeMs).replace(".", ",")}</span>
+      </button>
+      <div className={lapsOpen ? "" : "hidden lg:block"}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[380px] border-collapse">
           <caption className="px-2 pt-2.5 pb-3.5 text-left font-display text-[22px] font-semibold">Runden</caption>
@@ -293,6 +318,7 @@ export function SessionView({
           mehr als 0,2 s dahinter
         </span>
       </div>
+      </div>
     </section>
   );
 
@@ -313,6 +339,7 @@ export function SessionView({
           setActiveCorner(r ? (corners.find((c) => c.from === r.from && c.to === r.to)?.n ?? null) : null);
         }}
         lead={hero}
+        sectorEnds={sectorEnds}
         aside={
           <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
             {lapTable}
@@ -345,7 +372,7 @@ export function SessionView({
         traces={{ reference, compare, delta, stepM: STEP_M }}
       />
 
-      <StintReport stints={stints} />
+      <StintReport stints={stints} sessionBestMs={best.timeMs} />
 
       <LapStats laps={session.laps} styles={styles}>
         <StrategyCalc {...raceBase} />
