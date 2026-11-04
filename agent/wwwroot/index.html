@@ -3,287 +3,604 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#14171c">
 <title>lunaracing live</title>
 <style>
+  /* Schriften liegen neben der Seite: der Agent läuft im Heimnetz, ohne Google Fonts */
+  @font-face { font-family: "Saira"; font-weight: 400; src: url(fonts/saira-latin-400-normal.woff2) format("woff2"); font-display: swap; }
+  @font-face { font-family: "Saira"; font-weight: 500; src: url(fonts/saira-latin-500-normal.woff2) format("woff2"); font-display: swap; }
+  @font-face { font-family: "Saira"; font-weight: 600; src: url(fonts/saira-latin-600-normal.woff2) format("woff2"); font-display: swap; }
+  @font-face { font-family: "Saira Condensed"; font-weight: 500; src: url(fonts/saira-condensed-latin-500-normal.woff2) format("woff2"); font-display: swap; }
+  @font-face { font-family: "Saira Condensed"; font-weight: 600; src: url(fonts/saira-condensed-latin-600-normal.woff2) format("woff2"); font-display: swap; }
+  @font-face { font-family: "Saira Condensed"; font-weight: 700; src: url(fonts/saira-condensed-latin-700-normal.woff2) format("woff2"); font-display: swap; }
+
   :root {
-    --bg: #0b0d12; --panel: #131720; --line: #232a36; --fg: #e8ecf3; --muted: #8590a3;
-    --accent: #4fa8ff; --ref: #c9d1dc; --good: #2fd07a; --loss: #ff5a52; --warn: #f5b13d; --close: #b277ff; --side: #ff4fb4;
-    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --bg: #14171c; --panel: #1b1f26; --line: #2a303a; --fg: #eceff3; --muted: #9aa3b0; --same: #4a525e;
+    --me: #5ab4ff; --warn: #ff8a3d; --best: #c29bff; --green: #4ade80; --yellow: #f2c14e; --red: #e5484d;
+    --cond: "Saira Condensed", "Saira", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { padding: 12px max(12px, env(safe-area-inset-right)) 24px max(12px, env(safe-area-inset-left)); }
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 12px; }
-  .brand { color: var(--accent); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; }
-  .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-  .dot.ok { background: var(--good); } .dot.warn { background: var(--warn); } .dot.err { background: var(--loss); }
-  .sub { color: var(--muted); font-size: 12px; }
-  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-  .wide { grid-column: 1 / -1; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; min-width: 0; }
-  h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .big { font-family: var(--mono); font-size: clamp(28px, 3.2vw, 40px); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-  .kv div { background: var(--bg); border-radius: 8px; padding: 6px 8px; min-width: 0; }
-  .kv dt { color: var(--muted); font-size: 11px; } .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .drive { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; }
-  .gear { font-family: var(--mono); font-size: 72px; line-height: 1; min-width: 1ch; text-align: center; }
-  .bars { display: flex; gap: 8px; height: 80px; }
-  .bar { width: 14px; background: var(--bg); border-radius: 4px; position: relative; overflow: hidden; }
-  .bar i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 4px; }
-  .rpm { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin-top: 8px; }
-  .rpm i { display: block; height: 100%; background: var(--accent); }
-  .delta { font-family: var(--mono); font-size: clamp(24px, 2.6vw, 32px); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  @media (min-width: 900px) { .map { grid-column: span 2; } }
-  .tyres { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .tyre { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
-  .tyre .temps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin: 4px 0; }
-  .tyre .temps span { border-radius: 4px; text-align: center; font-family: var(--mono); font-size: 12px; padding: 2px 0; color: #0b0d12; }
-  .tyre small { color: var(--muted); font-size: 11px; display: block; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
-  td { padding: 5px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  tr.me td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  tr.near td:first-child { box-shadow: inset 3px 0 var(--close); }
-  .scroll { overflow-x: auto; }
-  canvas { width: 100%; height: 280px; display: block; }
-  .muted { color: var(--muted); } .good { color: var(--good); } .loss { color: var(--loss); } .warn { color: var(--warn); }
-  .pill { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 11px; background: var(--bg); color: var(--muted); }
-  .pill.on { background: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); }
-  #msg { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 18px/1.3 "Saira", system-ui, sans-serif; font-variant-numeric: tabular-nums;
+    padding: 16px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+    display: flex; flex-direction: column; gap: 18px; min-height: 100vh;
+  }
+  .c { font-family: var(--cond); }
+  .muted { color: var(--muted); }
+  h2 { margin: 0; font: 600 28px/1.1 var(--cond); }
+
+  /* Kopfzeile */
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 32px; padding-bottom: 12px; border-bottom: 1px solid var(--line); font-family: var(--cond); }
+  .place { font-weight: 700; font-size: 44px; line-height: 1; }
+  .place small, .hl small { font-weight: 500; font-size: 26px; color: var(--muted); }
+  .hl { font-weight: 600; font-size: 30px; }
+  .flag { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; padding: 4px 18px; border-radius: 8px; font-weight: 600; font-size: 26px; }
+  .flag i { width: 14px; height: 14px; border-radius: 3px; background: currentColor; }
+  .where { font: 17px "Saira", sans-serif; color: var(--muted); }
+  #msg { margin: 0; padding: 12px 16px; border-radius: 10px; border: 2px solid var(--warn); color: var(--fg); font-size: 18px; }
   #msg:empty { display: none; }
+
+  /* Spalten: Handy eine, Tablet zwei, ab 1600 drei ohne Scrollen */
+  main { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "me" "car" "field"; }
+  #field { grid-area: field; } #me { grid-area: me; } #car { grid-area: car; }
+  @media (min-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "me car" "field field"; }
+  }
+  @media (min-width: 1600px) {
+    body { height: 100vh; overflow: hidden; padding-bottom: 20px; }
+    main { flex: 1; min-height: 0; grid-template-columns: 540px minmax(0, 1fr) 580px; grid-template-areas: "field me car"; }
+    #field, #me, #car { min-height: 0; }
+    /* bei 1080 px Höhe muss alles ohne Scrollen passen */
+    #car { gap: 14px !important; }
+    #car .box { padding: 12px 18px; gap: 10px; }
+    .wheel { gap: 4px; padding: 8px 12px; }
+  }
+  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .box { border: 2px solid var(--line); border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .head span { font-size: 16px; color: var(--muted); }
+
+  /* Feld */
+  .row { display: grid; grid-template-columns: 40px 52px minmax(0, 1fr) 80px 52px 104px; gap: 10px; align-items: center; height: 44px; padding: 0 10px; border-top: 1px solid var(--line); }
+  .row.th { height: 30px; border: 0; align-items: end; padding-bottom: 4px; font-size: 15px; color: var(--muted); }
+  .row.me { background: rgba(90, 180, 255, 0.14); box-shadow: inset 4px 0 0 var(--me); }
+  .row .p { font: 700 26px var(--cond); }
+  .row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 20px; }
+  .row.me .nm { font-weight: 600; }
+  .row .gap { text-align: right; font: 600 24px var(--cond); }
+  .row .gap.close { color: var(--warn); }
+  .row .gap.self { font-size: 20px; color: var(--muted); }
+  .tyre { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 14px; border: 2px solid; font: 700 17px var(--cond); }
+  .ve { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+  .ve b { flex: 0 0 56px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; display: block; }
+  .ve b i { display: block; height: 100%; background: var(--muted); }
+  .classbar { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 15px; color: var(--muted); }
+  .classbar i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .mapwrap { flex: 1; min-height: 260px; display: flex; gap: 20px; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
+  #map { display: block; height: 100%; max-height: 440px; min-height: 240px; flex: 1; min-width: 0; }
+  .legend { display: flex; flex-direction: column; gap: 12px; font-size: 16px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 10px; }
+  .legend i { width: 18px; height: 18px; border-radius: 9px; flex: none; }
+
+  /* Mitte */
+  .leds { display: flex; gap: 8px; height: 26px; }
+  .leds span { flex: 1; border-radius: 6px; background: var(--line); }
+  .drive { display: flex; align-items: flex-end; gap: clamp(16px, 2vw, 40px); }
+  .gear { font: 700 clamp(150px, 14.5vw, 280px)/0.78 var(--cond); min-width: 0.6em; text-align: center; }
+  .speed { font: 700 clamp(84px, 7.8vw, 150px)/0.8 var(--cond); }
+  .speed small { font: 500 28px "Saira", sans-serif; color: var(--muted); }
+  .rpmtxt { font: 600 30px var(--cond); color: var(--muted); margin-top: 6px; }
+  .lap { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  .delta { font: 700 clamp(80px, 6.9vw, 132px)/0.85 var(--cond); }
+  .times { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 20px; align-items: baseline; font: 600 34px var(--cond); text-align: right; }
+  .times dt { font: 400 18px "Saira", sans-serif; color: var(--muted); }
+  .times dd { margin: 0; }
+  .sectors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .sec { padding: 8px 14px; border-radius: 8px; background: var(--panel); border-bottom: 4px solid transparent; }
+  .sec.live { background: rgba(90, 180, 255, 0.16); border: 2px solid var(--me); }
+  .sec div:first-child { font-size: 15px; color: var(--muted); }
+  .sec div:last-child { font: 700 30px var(--cond); }
+  .gaps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .gbox { display: flex; flex-direction: column; gap: 4px; padding: 16px 22px; border-radius: 14px; border: 2px solid var(--line); min-width: 0; }
+  .gbox.close { background: rgba(255, 138, 61, 0.12); border-color: var(--warn); }
+  .gbox .head { flex-wrap: wrap; gap: 0 12px; }
+  .gbox .head b { font: 600 26px var(--cond); white-space: nowrap; }
+  .gbox .head span { font-size: 18px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gbox .num { font: 700 clamp(56px, 4.8vw, 92px)/0.9 var(--cond); }
+  .gbox.close .num { color: var(--warn); }
+  .gbox .num.free { color: var(--same); }
+  #band { display: block; width: 100%; height: auto; font-family: var(--cond); }
+
+  /* Rechts */
+  .wheels { display: grid; grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr); grid-template-rows: auto auto; gap: 12px; }
+  .wheel { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--panel); }
+  .wheel.hot { box-shadow: inset 0 0 0 2px var(--warn); }
+  .wheel .head b { font: 700 24px var(--cond); }
+  .wheel .head span { font: 600 22px var(--cond); color: var(--fg); }
+  .wheel .head small { font: 400 15px "Saira", sans-serif; color: var(--muted); }
+  .temps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  .temps span { padding: 6px 0; border-radius: 6px; text-align: center; font: 600 24px var(--cond); }
+  .t-cold { background: rgba(90, 180, 255, 0.3); } .t-ok { background: rgba(236, 239, 243, 0.1); } .t-hot { background: rgba(255, 138, 61, 0.45); }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+  .bar b { flex: 1; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; display: block; }
+  .bar b i { display: block; height: 100%; background: var(--muted); }
+  .brake { font-size: 16px; color: var(--muted); }
+  .brake span { color: var(--fg); font: 600 20px var(--cond); }
+  .body { grid-column: 2; grid-row: 1 / span 2; border: 2px solid var(--same); border-radius: 26px 26px 16px 16px; }
+  .stop { font: 700 clamp(32px, 2.3vw, 44px)/1 var(--cond); color: var(--yellow); }
+  .stop.none { color: var(--muted); font-size: 26px; }
+  .res { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 6px 14px; align-items: baseline; }
+  .res .th { font-size: 15px; color: var(--muted); }
+  .res .v { font: 600 28px var(--cond); }
+  .res .lim { color: var(--yellow); }
+  .res .v.lim { font-weight: 700; }
+  .battery { display: flex; align-items: center; gap: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .battery b { flex: 1; height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; display: block; }
+  .battery b i { display: block; height: 100%; background: var(--green); }
+  .settings { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; }
+  .settings dt { font-size: 15px; color: var(--muted); }
+  .settings dd { margin: 0; font: 700 32px/1.1 var(--cond); border-radius: 6px; transition: background 0.15s; }
+  .settings dd.flash { background: rgba(255, 138, 61, 0.35); }
+  .status { display: inline-flex; align-items: center; gap: 8px; font: 16px "Saira", sans-serif; color: var(--muted); }
+  .status i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .status i.ok { background: var(--green); } .status i.warn { background: var(--yellow); } .status i.err { background: var(--red); }
+
+  @media (max-width: 600px) {
+    body { font-size: 16px; }
+    .row { grid-template-columns: 28px 36px minmax(0, 1fr) 60px 48px 48px; gap: 6px; padding: 0 6px; }
+    .wheels { grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); gap: 8px; }
+    .temps span { font-size: 20px; }
+    .brake span { white-space: nowrap; }
+    .ve b { display: none; }
+    .times { font-size: 26px; }
+    .gaps { gap: 10px; }
+    .gbox { padding: 12px 14px; }
+    .settings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .res { grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 4px 8px; }
+    .res .v { font-size: 22px; }
+    .place { font-size: 36px; } .hl { font-size: 24px; } .flag { margin-left: 0; font-size: 22px; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <span class="brand">lunaracing live</span>
-  <span class="status"><i id="conn" class="dot"></i><span id="connText">verbinde …</span></span>
-  <span id="session" class="sub"></span>
+  <span class="place" id="place">P– <small>von –</small></span>
+  <span class="hl" id="session">–</span>
+  <span class="hl" id="laps"></span>
+  <span class="flag" id="flag"><i></i><span>–</span></span>
+  <span class="where" id="where"></span>
+  <span class="status"><i id="conn"></i><span id="connText">verbinde …</span></span>
 </header>
 <p id="msg"></p>
 
-<div class="grid">
-  <section>
-    <h2>Fahren</h2>
+<main>
+  <div class="col" id="field">
+    <section aria-label="Wertung">
+      <div class="head" style="height: 40px"><h2>Wertung</h2><span id="gapMode">Abstand zum Führenden</span></div>
+      <div class="classbar" id="classes"></div>
+      <div class="row th"><span>Platz</span><span>Nr.</span><span>Fahrer</span><span style="text-align: right">Abstand</span><span>Reifen</span><span>Energie</span></div>
+      <div id="standings"></div>
+    </section>
+    <section class="mapwrap" aria-label="Strecke">
+      <svg id="map" role="img" aria-label="Streckenkarte mit allen Autos"></svg>
+      <div class="legend">
+        <span><i style="background: var(--me)"></i>du</span>
+        <span><i style="background: var(--warn)"></i>unter 1 s an dir dran</span>
+        <span><i style="background: var(--fg)"></i>andere, mit Platz</span>
+        <span><i style="height: 3px; border-radius: 0; background: var(--fg)"></i>Sektorgrenze</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="col" id="me" style="gap: 22px">
+    <div class="leds" id="leds" role="img" aria-label="Schaltlichter"></div>
     <div class="drive">
-      <div class="gear" id="gear">–</div>
-      <div>
-        <div class="big" id="speed">0</div><span class="sub">km/h</span>
-        <div class="rpm"><i id="rpm" style="width:0"></i></div>
-        <div class="sub" style="margin-top:6px" id="aids"></div>
-      </div>
-      <div class="bars" title="Gas und Bremse">
-        <div class="bar"><i id="thr" style="background:var(--good);height:0"></i></div>
-        <div class="bar"><i id="brk" style="background:var(--loss);height:0"></i></div>
+      <span class="gear" id="gear">–</span>
+      <div style="padding-bottom: 6px">
+        <div class="speed"><span id="speed">0</span> <small>km/h</small></div>
+        <div class="rpmtxt" id="rpm">– U/min</div>
       </div>
     </div>
-  </section>
+    <section class="box" aria-label="Runde und Sektoren" style="gap: 16px; padding: 20px 24px">
+      <div class="lap">
+        <div style="display: flex; flex-direction: column"><span class="muted">zur Bestzeit</span><span class="delta" id="delta">±0,00</span></div>
+        <dl class="times">
+          <dt>aktuell</dt><dd id="cur">–</dd>
+          <dt>letzte</dt><dd id="last">–</dd>
+          <dt>beste</dt><dd id="best">–</dd>
+        </dl>
+      </div>
+      <div class="sectors" id="sectors"></div>
+    </section>
+    <section aria-label="Abstände" style="display: flex; flex-direction: column; gap: 10px">
+      <div class="gaps">
+        <div class="gbox" id="behind"></div>
+        <div class="gbox" id="ahead"></div>
+      </div>
+      <svg id="band" viewBox="0 0 680 96" role="img" aria-label="Abstandsband"></svg>
+    </section>
+  </div>
 
-  <section>
-    <h2>Runde</h2>
-    <div class="row">
-      <div><div class="big" id="laptime">0:00.0</div><span class="sub" id="lapno"></span></div>
-      <div style="text-align:right"><div class="delta" id="delta">±0.00</div><span class="sub">zur Bestzeit</span></div>
-    </div>
-    <dl class="kv">
-      <div><dt>Platz</dt><dd id="place">–</dd></div>
-      <div><dt>Letzte</dt><dd id="last">–</dd></div>
-      <div><dt>Beste</dt><dd id="best">–</dd></div>
-    </dl>
-  </section>
-
-  <section>
-    <h2>Abstände</h2>
-    <div class="row">
-      <div><span class="sub">vor dir</span><div class="big" id="gapAhead">–</div></div>
-      <div style="text-align:right"><span class="sub">hinter dir</span><div class="big" id="gapBehind">–</div></div>
-    </div>
-    <p class="sub" style="margin:8px 0 0" id="gapPlace"></p>
-  </section>
-
-  <section>
-    <h2>Sprit & Energie</h2>
-    <dl class="kv" style="margin-top:0">
-      <div><dt>Sprit</dt><dd id="fuel">–</dd></div>
-      <div><dt>pro Runde</dt><dd id="fpl">–</dd></div>
-      <div><dt>reicht</dt><dd id="fleft">–</dd></div>
-      <div><dt>Virtual Energy</dt><dd id="ve">–</dd></div>
-      <div><dt>pro Runde</dt><dd id="vpl">–</dd></div>
-      <div><dt>reicht</dt><dd id="vleft">–</dd></div>
-    </dl>
-    <p class="sub" style="margin:8px 0 0" id="limit">Verbrauch ab der ersten ganzen Runde.</p>
-  </section>
-
-  <section>
-    <h2>Reifen & Bremsen</h2>
-    <div class="tyres" id="tyres"></div>
-  </section>
-
-  <section class="map">
-    <h2>Strecke</h2>
-    <canvas id="map" aria-label="Positionen aller Autos"></canvas>
-    <p class="sub" style="margin:6px 0 0">Die Strecke zeichnet sich in deiner ersten Runde selbst. Blau du, lila das Auto vor und hinter dir.</p>
-  </section>
-
-  <section class="wide">
-    <h2>Wertung</h2>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>P</th><th>Fahrer</th><th>Klasse</th><th>Abstand</th><th>Vordermann</th><th>Letzte</th><th>Beste</th><th>Box</th></tr></thead>
-        <tbody id="standings"></tbody>
-      </table>
-    </div>
-  </section>
-</div>
+  <div class="col" id="car" style="gap: 18px">
+    <section class="box" aria-label="Reifen und Bremsen">
+      <div class="head"><h2>Reifen und Bremsen</h2><span>°C, von oben gesehen</span></div>
+      <div class="wheels" id="wheels"></div>
+    </section>
+    <section class="box" aria-label="Energie und Sprit">
+      <div class="head"><h2>Energie und Sprit</h2><span id="avgNote"></span></div>
+      <span class="stop none" id="stop">noch keine ganze Runde</span>
+      <div class="res" id="res"></div>
+      <div class="battery" id="battery" hidden></div>
+    </section>
+    <section class="box" aria-label="Einstellungen und Motor" style="gap: 10px">
+      <h2>Einstellungen und Motor</h2>
+      <dl class="settings" id="settings"></dl>
+    </section>
+  </div>
+</main>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const de = (v, d = 1) => v.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
-const lap = (s) => {
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+const lapStr = (s, d = 3) => {
   if (!s || s <= 0) return "–";
   const m = Math.floor(s / 60);
-  return `${m}:${(s - m * 60).toFixed(3).padStart(6, "0")}`;
+  return `${m}:${(s - m * 60).toFixed(d).padStart(d + 3, "0").replace(".", ",")}`;
 };
+const secStr = (s) => (s > 0 ? (s >= 60 ? lapStr(s) : de(s, 3)) : "–");
 const clock = (s) => {
-  if (s == null) return "";
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
 };
-// Reifentemperatur: kalt blau, gut grün, heiß rot (GT3: grob 75–95 °C)
-const tempColor = (c) => {
-  if (c <= 0) return "#2a3140";
-  const f = Math.max(0, Math.min(1, (c - 55) / 55));
-  return `hsl(${220 - f * 220} 70% 62%)`;
+const signed = (v, d = 2) => `${v > 0.005 ? "+" : v < -0.005 ? "−" : "±"}${de(Math.abs(v), d)}`;
+
+// Zustand, der über Frames hinweg gemerkt wird
+const S = {
+  track: "", path: [], pathDone: false, lastD: -1,
+  sectorMarks: {}, lastSector: null, secStartDelta: 0,
+  myLap: null, gapHist: new Map(),   // Abstand jedes Autos zu dir an der Ziellinie, letzte 3 Runden
+  bestSec: [Infinity, Infinity, Infinity],
 };
 
-// Streckenkarte aus den eigenen Positionen, ein Punkt alle 10 m
-let path = [], pathTrack = "", pathDone = false, lastD = -1;
-function addPath(track, d, x, z, length) {
-  if (track !== pathTrack) { path = []; pathTrack = track; pathDone = false; lastD = -1; }
-  if (pathDone || length <= 0) return;
-  if (lastD >= 0 && d < lastD - length / 2) { if (path.length > 50) pathDone = true; return; }
-  if (lastD < 0 || d - lastD >= 10) { path.push([x, z]); lastD = d; }
+/** Abstand eines Autos zu dir in s: positiv = hinter dir. null bei Überrundung. */
+function gapToMe(c, me) {
+  if (!me || c === me) return 0;
+  if (c.lapsBehindLeader !== me.lapsBehindLeader) return null;
+  return c.behindLeaderS - me.behindLeaderS;
 }
 
-function drawMap(cars, me) {
-  const cv = $("map"), dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth, h = cv.clientHeight;
-  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
-  const g = cv.getContext("2d");
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, w, h);
-  const pts = path.length > 10 ? path : cars.map((c) => [c.x, c.z]);
-  if (!pts.length) return;
-  const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
-  const pad = 14, k = Math.min((w - 2 * pad) / (maxX - minX || 1), (h - 2 * pad) / (maxZ - minZ || 1));
-  const ox = (w - (maxX - minX) * k) / 2, oz = (h - (maxZ - minZ) * k) / 2;
-  const P = (x, z) => [ox + (x - minX) * k, oz + (maxZ - z) * k];
-  if (path.length > 10) {
-    g.strokeStyle = "#2a3140"; g.lineWidth = 6; g.lineJoin = g.lineCap = "round";
-    g.beginPath(); path.forEach(([x, z], i) => { const [a, b] = P(x, z); i ? g.lineTo(a, b) : g.moveTo(a, b); });
-    if (pathDone) g.closePath();
-    g.stroke();
+function compound(name) {
+  const n = (name || "").toLowerCase();
+  if (!n) return null;
+  if (n.includes("soft")) return ["S", "var(--red)"];
+  if (n.includes("med")) return ["M", "var(--yellow)"];
+  if (n.includes("hard")) return ["H", "var(--fg)"];
+  if (n.includes("wet") || n.includes("rain")) return ["W", "var(--me)"];
+  return [name.trim().charAt(0).toUpperCase(), "var(--muted)"];
+}
+
+const CLASS_COLORS = ["#5ab4ff", "#ff8a3d", "#4ade80", "#c29bff", "#f2c14e"];
+
+function flagOf(s) {
+  const sectorYellow = (s.sectorYellow || []).map((v, i) => (v > 0 && v !== 11 ? i + 1 : 0)).filter(Boolean);
+  switch (s.gamePhase) {
+    case 6: return ["Safety Car", "var(--yellow)"];
+    case 7: return ["Rot, gestoppt", "var(--red)"];
+    case 8: return ["Ende", "var(--fg)"];
+    case 3: return ["Einführungsrunde", "var(--muted)"];
+    case 4: return ["Start gleich", "var(--red)"];
+    case 0: case 1: case 2: return ["Vor dem Start", "var(--muted)"];
   }
-  const near = new Set(me ? [me.place - 1, me.place + 1] : []);
-  for (const c of [...cars].sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0))) {
-    const [a, b] = P(c.x, c.z);
-    g.beginPath(); g.arc(a, b, c.isPlayer ? 6 : near.has(c.place) ? 5 : 4, 0, Math.PI * 2);
-    g.fillStyle = c.isPlayer ? "#4fa8ff" : near.has(c.place) ? "#b277ff" : c.inPits ? "#3a4252" : "#8590a3";
-    g.fill(); g.lineWidth = 2; g.strokeStyle = "#131720"; g.stroke();
-    if (!c.isPlayer && near.has(c.place)) {
-      g.fillStyle = "#b277ff"; g.font = "11px system-ui"; g.fillText(`P${c.place}`, a + 8, b - 6);
+  if (s.yellowFlag > 0 && s.yellowFlag !== 4) return ["Full Course Yellow", "var(--yellow)"];
+  if (sectorYellow.length) return [`Gelb in S${sectorYellow.join(", S")}`, "var(--yellow)"];
+  return ["Grün", "var(--green)"];
+}
+
+function renderHeader(f, me, cars) {
+  const s = f.session;
+  if (!s) return;
+  $("place").innerHTML = me ? `P${me.place} <small>von ${cars.length}</small>` : `– <small>von ${cars.length}</small>`;
+  $("session").textContent = `${s.type}${s.timeLeftS != null ? `, noch ${clock(s.timeLeftS)}` : ""}`;
+  const lap = f.player?.lap ?? 0;
+  const pace = me ? (me.lastLapS > 0 ? me.lastLapS : me.bestLapS) : 0;
+  let total = "";
+  if (s.maxLaps > 0 && s.maxLaps < 1000) total = `von ${s.maxLaps}`;
+  else if (s.timeLeftS != null && pace > 0) total = `von etwa ${lap + Math.floor(s.timeLeftS / pace)}`;
+  $("laps").innerHTML = lap ? `Runde ${lap} <small>${total}</small>` : "";
+  const [text, color] = flagOf(s);
+  const fl = $("flag");
+  fl.style.color = color;
+  fl.style.background = `color-mix(in srgb, ${color} 14%, transparent)`;
+  fl.lastElementChild.textContent = text;
+  $("where").textContent = `${s.track.replace("Autodromo Nazionale ", "")}, Luft ${de(s.ambientC, 0)} °C, Strecke ${de(s.trackC, 0)} °C`;
+}
+
+function renderField(cars, me) {
+  const classes = [...new Set(cars.map((c) => c.class))];
+  const multi = classes.length > 1;
+  const color = (cl) => CLASS_COLORS[classes.indexOf(cl) % CLASS_COLORS.length];
+  const leaderOf = new Map();
+  for (const c of cars) if (!leaderOf.has(c.class)) leaderOf.set(c.class, c);
+  $("gapMode").textContent = multi ? "Abstand zum Führenden der Klasse" : "Abstand zum Führenden";
+  $("classes").innerHTML = multi ? classes.map((cl) => `<span><i style="background:${color(cl)}"></i>${esc(cl)}</span>`).join("") : "";
+  $("standings").innerHTML = cars.map((c) => {
+    const lead = multi ? leaderOf.get(c.class) : cars[0];
+    const isLead = c === lead;
+    const g = c.lapsBehindLeader - lead.lapsBehindLeader;
+    const gap = isLead ? (c.isPlayer ? "führt" : "") : g > 0 ? `+${g} R` : `+${de(c.behindLeaderS - lead.behindLeaderS, 1)}`;
+    const toMe = gapToMe(c, me);
+    const close = !c.isPlayer && toMe !== null && Math.abs(toMe) < 1;
+    const cp = compound(c.compound);
+    const ve = c.energy != null ? Math.round(c.energy * 100) : null;
+    const strip = multi ? `box-shadow: inset 4px 0 0 ${c.isPlayer ? "var(--me)" : color(c.class)};` : "";
+    return `<div class="row${c.isPlayer ? " me" : ""}" style="${strip}">
+      <span class="p">${c.place}</span>
+      <span class="muted">${c.number ? `#${esc(c.number)}` : ""}</span>
+      <span class="nm">${esc(c.driver)}</span>
+      <span class="gap${close ? " close" : ""}${c.isPlayer ? " self" : ""}">${gap}</span>
+      <span>${cp ? `<span class="tyre" style="border-color:${cp[1]};color:${cp[1]}" title="${esc(c.compound)}">${cp[0]}</span>` : ""}</span>
+      <span class="ve">${ve != null ? `<b><i style="width:${ve}%;${ve < 20 ? "background:var(--warn)" : ""}"></i></b><span>${ve} %</span>` : ""}</span>
+    </div>`;
+  }).join("");
+}
+
+// Strecke aus deinen eigenen Positionen, ein Punkt alle 10 m. Sektorgrenzen aus dem Sektorwechsel.
+function trackPath(f, me) {
+  const s = f.session;
+  if (!me || !s) return;
+  if (s.track !== S.track) Object.assign(S, { track: s.track, path: [], pathDone: false, lastD: -1, sectorMarks: {} });
+  if (S.lastSector !== null && me.sector !== S.lastSector) S.sectorMarks[me.sector] = [me.x, me.z];
+  if (!S.pathDone && s.trackLengthM > 0) {
+    if (S.lastD >= 0 && me.lapDist < S.lastD - s.trackLengthM / 2) {
+      if (S.path.length > 50) S.pathDone = true;
+    } else if (S.lastD < 0 || me.lapDist - S.lastD >= 10) {
+      S.path.push([me.x, me.z]);
+      S.lastD = me.lapDist;
     }
   }
+}
+
+function renderMap(cars, me) {
+  const svg = $("map");
+  const pts = S.path.length > 10 ? S.path : cars.map((c) => [c.x, c.z]);
+  if (!pts.length) { svg.innerHTML = ""; return; }
+  const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const k = 400 / Math.max(maxX - minX || 1, maxZ - minZ || 1);
+  const W = (maxX - minX) * k + 80, H = (maxZ - minZ) * k + 80;
+  const P = (x, z) => [40 + (x - minX) * k, 40 + (maxZ - z) * k];
+  svg.setAttribute("viewBox", `0 0 ${W.toFixed(0)} ${H.toFixed(0)}`);
+  let out = "";
+  if (S.path.length > 10) {
+    out += `<polyline points="${S.path.map(([x, z]) => P(x, z).map((v) => v.toFixed(1)).join(",")).join(" ")}${S.pathDone ? " " + P(...S.path[0]).join(",") : ""}" fill="none" stroke="#4a525e" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  // Sektor 1 beginnt an der Ziellinie (Wechsel auf 1), S2 und S3 an den gemerkten Stellen
+  const label = { 1: "S1", 2: "S2", 0: "S3" };
+  for (const [sec, pos] of Object.entries(S.sectorMarks)) {
+    const [a, b] = P(...pos);
+    out += `<line x1="${a - 14}" y1="${b}" x2="${a + 14}" y2="${b}" stroke="#eceff3" stroke-width="3"/><text x="${a + 18}" y="${b + 6}" font-size="20" font-weight="600" fill="#9aa3b0">${label[sec]}</text>`;
+  }
+  const sorted = [...cars].sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
+  for (const c of sorted) {
+    const [a, b] = P(c.x, c.z);
+    const toMe = gapToMe(c, me);
+    const fill = c.isPlayer ? "#5ab4ff" : toMe !== null && Math.abs(toMe) < 1 ? "#ff8a3d" : "#eceff3";
+    const r = c.isPlayer ? 16 : 14;
+    out += `<circle cx="${a.toFixed(1)}" cy="${b.toFixed(1)}" r="${r}" fill="${fill}" stroke="#14171c" stroke-width="3"/><text x="${a.toFixed(1)}" y="${(b + 7).toFixed(1)}" text-anchor="middle" font-family="Saira Condensed" font-size="${c.isPlayer ? 22 : 19}" font-weight="700" fill="#14171c">${c.place}</text>`;
+  }
+  svg.innerHTML = out;
+}
+
+function renderDrive(p) {
+  $("gear").textContent = p.gear < 0 ? "R" : p.gear === 0 ? "N" : p.gear;
+  $("speed").textContent = Math.round(p.speedKmh);
+  $("rpm").textContent = `${Math.round(p.rpm).toLocaleString("de-DE")} U/min`;
+  // 15 Lichter: ab 70 % der Maximaldrehzahl, das letzte (blau) kurz vor dem Begrenzer
+  const f = p.maxRpm > 0 ? Math.max(0, Math.min(1, (p.rpm / p.maxRpm - 0.7) / 0.28)) : 0;
+  const lit = Math.round(f * 15);
+  const col = (i) => (i < 5 ? "#4ade80" : i < 10 ? "#f2c14e" : i < 14 ? "#e5484d" : "#5ab4ff");
+  $("leds").innerHTML = Array.from({ length: 15 }, (_, i) =>
+    `<span style="${i < lit ? `background:${col(i)}` : `box-shadow: inset 0 0 0 2px ${col(i)}33`}"></span>`).join("");
+}
+
+function renderLap(p, me, cars) {
+  const d = p.deltaBestS;
+  $("delta").textContent = signed(d);
+  $("delta").style.color = d < -0.005 ? "var(--me)" : d > 0.005 ? "var(--warn)" : "var(--fg)";
+  $("cur").textContent = lapStr(p.lapTimeS, 1);
+  $("cur").style.color = p.lapInvalid ? "var(--muted)" : "";
+  $("last").textContent = me ? lapStr(me.lastLapS) : "–";
+  const fieldBest = Math.min(...cars.map((c) => (c.bestLapS > 0 ? c.bestLapS : Infinity)));
+  $("best").textContent = me ? lapStr(me.bestLapS) : "–";
+  $("best").style.color = me && me.bestLapS > 0 && me.bestLapS <= fieldBest ? "var(--best)" : "";
+  if (!me) return;
+
+  // Sektor: LMU zählt 1, 2 und 0 (= Sektor 3)
+  const idx = me.sector === 0 ? 2 : me.sector - 1;
+  if (S.lastSector !== null && me.sector !== S.lastSector) S.secStartDelta = d;
+  const last = me.lastS1 > 0 && me.lastS2 > 0 && me.lastLapS > 0 ? [me.lastS1, me.lastS2 - me.lastS1, me.lastLapS - me.lastS2] : [0, 0, 0];
+  const cur = [me.curS1 > 0 ? me.curS1 : 0, me.curS2 > 0 && me.curS1 > 0 ? me.curS2 - me.curS1 : 0];
+  [...last, ...cur].forEach((t, i) => { if (t > 0) S.bestSec[i % 3] = Math.min(S.bestSec[i % 3], t); });
+  const tone = (t, i) => (t <= 0 ? ["var(--muted)", "transparent"] : t <= S.bestSec[i] + 0.0005 ? ["var(--best)", "var(--best)"] : t - S.bestSec[i] <= 0.2 ? ["var(--green)", "var(--green)"] : ["var(--yellow)", "var(--yellow)"]);
+  $("sectors").innerHTML = [0, 1, 2].map((i) => {
+    if (i === idx) {
+      const live = d - S.secStartDelta;
+      return `<div class="sec live"><div>S${i + 1} läuft</div><div style="color:${live <= 0 ? "var(--me)" : "var(--warn)"}">${signed(live)}</div></div>`;
+    }
+    const doneNow = i < idx && cur[i] > 0;
+    const t = doneNow ? cur[i] : last[i];
+    const [c, b] = tone(t, i);
+    return `<div class="sec" style="border-bottom-color:${b}"><div>S${i + 1} ${doneNow ? "diese Runde" : "letzte Runde"}</div><div style="color:${c}">${secStr(t)}</div></div>`;
+  }).join("");
+}
+
+/** Trend des Abstands pro Runde aus den Werten an der Ziellinie: negativ = Abstand schrumpft. */
+function trend(id) {
+  const h = S.gapHist.get(id);
+  if (!h || h.length < 2) return null;
+  return (h.at(-1) - h[0]) / (h.length - 1);
+}
+
+function gapBox(el, title, car, gap, ahead) {
+  if (!car) {
+    el.className = "gbox";
+    el.innerHTML = `<div class="head"><b>${title}</b><span class="muted">${ahead ? "du führst" : "du bist Letzter"}</span></div><span class="num free">frei</span><span class="muted">kein Auto ${ahead ? "vor" : "hinter"} dir</span>`;
+    return;
+  }
+  const lapped = gap === null;
+  const free = !lapped && Math.abs(gap) > 3;
+  const close = !lapped && Math.abs(gap) < 1;
+  const tr = trend(car.id);
+  let trendTxt = "Trend ab der nächsten Runde";
+  if (tr !== null) {
+    // gap ist hinter dir positiv. Vor dir: Abstand = -gap
+    const shrinking = ahead ? tr > 0 : tr < 0;
+    const v = de(Math.abs(tr), 1);
+    if (Math.abs(tr) < 0.05) trendTxt = "Abstand bleibt gleich";
+    else if (ahead) trendTxt = shrinking ? `▲ du kommst ${v} s pro Runde näher` : `▼ fährt ${v} s pro Runde weg`;
+    else trendTxt = shrinking ? `▲ kommt ${v} s pro Runde näher` : `▼ fällt ${v} s pro Runde zurück`;
+  }
+  el.className = `gbox${close ? " close" : ""}`;
+  el.innerHTML = `<div class="head"><b>${title}</b><span>P${car.place} ${esc(car.driver)}</span></div>
+    <span class="num${free ? " free" : ""}">${lapped ? "1 R" : free ? "frei" : `${de(Math.abs(gap), 1)} s`}</span>
+    <span${free ? ' class="muted"' : ""}>${free ? "kein Auto in 3 s" : esc(trendTxt)}</span>`;
+}
+
+function renderGaps(f, me, cars) {
+  if (!me) return;
+  // Ziellinie: Abstände aller Autos zu dir merken
+  if (S.myLap !== null && f.player.lap !== S.myLap) {
+    for (const c of cars) {
+      const g = gapToMe(c, me);
+      if (g === null || c === me) continue;
+      const h = S.gapHist.get(c.id) ?? [];
+      h.push(g);
+      while (h.length > 3) h.shift();
+      S.gapHist.set(c.id, h);
+    }
+  }
+  S.myLap = f.player.lap;
+  const ahead = cars.find((c) => c.place === me.place - 1);
+  const behind = cars.find((c) => c.place === me.place + 1);
+  gapBox($("behind"), "Hinter dir", behind, behind ? gapToMe(behind, me) : 0, false);
+  gapBox($("ahead"), "Vor dir", ahead, ahead ? gapToMe(ahead, me) : 0, true);
+
+  // Band: ±3 s, Mitte = du, rechts = vor dir. Schmal: kleinere viewBox, damit die Schrift lesbar bleibt.
+  const BW = $("band").clientWidth < 520 ? 380 : 680;
+  const mid = BW / 2, perS = (BW - 110) / 6;
+  $("band").setAttribute("viewBox", `0 0 ${BW} 96`);
+  const X = (g) => mid - g * perS; // g positiv = hinter dir = links
+  let out = `<rect x="17" y="34" width="${BW - 34}" height="30" rx="6" fill="#1b1f26"/><rect x="${mid - perS}" y="34" width="${2 * perS}" height="30" fill="rgba(255,138,61,0.18)"/>`;
+  for (const s of [1, 2, 3]) for (const side of [-1, 1]) {
+    const x = mid + side * s * perS;
+    out += `<line x1="${x}" x2="${x}" y1="30" y2="68" stroke="#2a303a" stroke-width="2"/><text x="${x}" y="88" font-size="17" fill="#9aa3b0" text-anchor="middle">${s} s</text>`;
+  }
+  out += `<text x="17" y="20" font-size="20" font-weight="600" fill="#9aa3b0">hinter dir</text><text x="${BW - 28}" y="20" font-size="20" font-weight="600" fill="#9aa3b0" text-anchor="end">vor dir</text><path d="M${BW - 12} 14 L${BW - 22} 8 L${BW - 22} 20 Z" fill="#9aa3b0"/>`;
+  for (const c of cars) {
+    if (c === me) continue;
+    const g = gapToMe(c, me);
+    if (g === null || Math.abs(g) > 3.15) continue;
+    const x = Math.max(27, Math.min(BW - 27, X(g)));
+    const close = Math.abs(g) < 1;
+    out += `<circle cx="${x.toFixed(1)}" cy="49" r="${close ? 14 : 13}" fill="${close ? "#ff8a3d" : "#eceff3"}" stroke="#14171c" stroke-width="2"/><text x="${x.toFixed(1)}" y="56" font-size="18" font-weight="700" fill="#14171c" text-anchor="middle">${c.place}</text>`;
+  }
+  out += `<rect x="${mid - 4.5}" y="26" width="9" height="46" rx="3" fill="#5ab4ff" stroke="#14171c" stroke-width="2"/>`;
+  $("band").innerHTML = out;
+}
+
+function renderCar(p, me, cons, s) {
+  // LMU liefert links, Mitte, rechts aus Sicht des Autos. Von oben gesehen liegt damit
+  // bei allen vier Rädern innen zur Fahrzeugmitte: links außen, rechts innen bzw. umgekehrt.
+  const names = ["VL", "VR", "HL", "HR"];
+  const cls = (c) => (c < 75 ? "t-cold" : c < 90 ? "t-ok" : "t-hot");
+  const wheel = (t, i) => `
+    <div class="wheel${t.tempC.some((c) => c >= 90) ? " hot" : ""}" style="grid-column:${i % 2 === 0 ? 1 : 3};grid-row:${i < 2 ? 1 : 2}">
+      <div class="head"><b>${names[i]}</b><span>${de(t.pressureKpa, 0)} <small>kPa</small></span></div>
+      <div class="temps">${t.tempC.map((c) => `<span class="${cls(c)}">${c > 0 ? Math.round(c) : "–"}</span>`).join("")}</div>
+      <div class="bar"><b><i style="width:${Math.max(0, Math.min(100, t.wear * 100))}%"></i></b><span>${de(t.wear * 100, 0)} %</span></div>
+      <div class="brake">Bremse <span>${Math.round(t.brakeC)} °C</span>${t.flat ? ' <b style="color:var(--red)">Platten</b>' : ""}</div>
+    </div>`;
+  $("wheels").innerHTML = p.tyres.map(wheel).join("") + `<div class="body" aria-hidden="true"></div>`;
+
+  // Sprit und VE: VE kommt als Anteil 0..1
+  const vePct = p.virtualEnergy * 100;
+  const hasVe = p.virtualEnergy > 0;
+  const c = cons && cons.lapsCounted > 0 ? cons : null;
+  const veLeft = c?.lapsLeftVe ?? null, fuelLeft = c?.lapsLeftFuel ?? null;
+  const veLimits = hasVe && veLeft !== null && (fuelLeft === null || veLeft < fuelLeft);
+  const left = veLimits ? veLeft : fuelLeft;
+  const stop = $("stop");
+  if (left !== null && me && s?.trackLengthM > 0) {
+    const frac = 1 - me.lapDist / s.trackLengthM;
+    stop.className = "stop";
+    stop.textContent = `Box spätestens Ende Runde ${p.lap + Math.max(0, Math.floor(left - frac))}`;
+  } else {
+    stop.className = "stop none";
+    stop.textContent = "noch keine ganze Runde";
+  }
+  $("avgNote").textContent = c ? `Schnitt der letzten ${c.lapsCounted === 1 ? "Runde" : `${c.lapsCounted} Runden`}` : "";
+  const rowVe = hasVe
+    ? `<span class="${veLimits ? "lim" : ""}">Virtual Energy</span><span class="v">${de(vePct, 1)} %</span><span class="v">${c?.vePerLap ? `${de(c.vePerLap * 100, 2)} %` : "–"}</span><span class="v${veLimits ? " lim" : ""}">${veLeft !== null ? `${de(veLeft, 1)} R` : "–"}</span>`
+    : "";
+  const fuelLim = !veLimits && fuelLeft !== null;
+  const rowFuel = `<span class="${fuelLim ? "lim" : ""}">Sprit</span><span class="v">${de(p.fuelL, 1)} L</span><span class="v">${c?.fuelPerLap ? `${de(c.fuelPerLap, 2)} L` : "–"}</span><span class="v${fuelLim ? " lim" : ""}">${fuelLeft !== null ? `${de(fuelLeft, 1)} R` : "–"}</span>`;
+  $("res").innerHTML = `<span class="th"></span><span class="th">übrig</span><span class="th">pro Runde</span><span class="th">reicht</span>${rowVe}${rowFuel}`;
+
+  const bat = $("battery");
+  bat.hidden = !p.hybrid;
+  if (p.hybrid) {
+    const pct = Math.round(p.battery * 100);
+    const state = p.boostState === 3 ? "lädt" : p.boostState === 2 ? "Boost" : "";
+    bat.innerHTML = `<span>Batterie</span><b><i style="width:${pct}%"></i></b><span class="c" style="font-weight:600;font-size:28px">${pct} %</span><span class="muted">${state}</span>`;
+  }
+
+  const set = [
+    ["TC", p.tc, p.tcActive],
+    ["TC Cut", p.tcCutMax > 0 ? p.tcCut : null],
+    ["ABS", p.abs, p.absActive],
+    ["Motor-Map", p.motorMap],
+    ["Bremsbalance", `${de(p.brakeBiasFrontPct, 1)} %`],
+    ["Wasser", `${Math.round(p.waterC)} °C`],
+    ["Öl", `${Math.round(p.oilC)} °C`],
+    ["Bremsmigration", p.hybrid || p.migrationMax > 0 ? p.migration : null],
+  ].filter(([, v]) => v !== null && v !== undefined);
+  $("settings").innerHTML = set.map(([k, v, on]) => `<div><dt>${k}</dt><dd class="${on ? "flash" : ""}">${v}</dd></div>`).join("");
 }
 
 function render(data) {
   const f = data.frame || data;
-  const status = f.status;
-  $("conn").className = "dot " + (status === "ok" ? "ok" : status === "error" ? "err" : "warn");
-  $("connText").textContent = status === "ok" ? "live" : status === "menu" ? "im Menü" : status === "error" ? "Fehler" : "warte auf LMU";
+  const st = f.status;
+  $("conn").className = st === "ok" ? "ok" : st === "error" ? "err" : "warn";
+  $("connText").textContent = st === "ok" ? "live" : st === "menu" ? "im Menü" : st === "error" ? "Fehler" : "warte auf LMU";
   $("msg").textContent = f.message || "";
-  const s = f.session;
-  if (s) {
-    $("session").textContent = [s.track, s.type, s.timeLeftS != null ? `noch ${clock(s.timeLeftS)}` : "", `Luft ${de(s.ambientC, 0)} °C`, `Strecke ${de(s.trackC, 0)} °C`, s.rain > 0.05 ? `Regen ${de(s.rain * 100, 0)} %` : ""].filter(Boolean).join(" · ");
+  const cars = f.cars || [];
+  const me = cars.find((c) => c.isPlayer);
+  renderHeader(f, me, cars);
+  renderField(cars, me);
+  trackPath(f, me);
+  renderMap(cars, me);
+  if (f.player) {
+    renderDrive(f.player);
+    renderLap(f.player, me, cars);
+    renderGaps(f, me, cars);
+    renderCar(f.player, me, data.consumption, f.session);
   }
-  const p = f.player, cars = f.cars || [];
-  const meCar = cars.find((c) => c.isPlayer);
-  if (p) {
-    $("gear").textContent = p.gear < 0 ? "R" : p.gear === 0 ? "N" : p.gear;
-    $("speed").textContent = Math.round(p.speedKmh);
-    $("rpm").style.width = `${p.maxRpm > 0 ? Math.min(100, (p.rpm / p.maxRpm) * 100) : 0}%`;
-    $("rpm").style.background = p.maxRpm > 0 && p.rpm / p.maxRpm > 0.95 ? "var(--loss)" : "var(--accent)";
-    $("thr").style.height = `${p.throttle * 100}%`;
-    $("brk").style.height = `${p.brake * 100}%`;
-    $("aids").innerHTML = `TC ${p.tc} <span class="pill ${p.tcActive ? "on" : ""}">TC</span> · ABS ${p.abs} <span class="pill ${p.absActive ? "on" : ""}">ABS</span> · Map ${p.motorMap} · BB ${de(p.brakeBiasFrontPct, 1)} %${p.limiter ? ' · <span class="pill on">Limiter</span>' : ""}`;
-    $("laptime").textContent = lap(p.lapTimeS).replace(/(\.\d)\d\d$/, "$1");
-    $("laptime").className = "big" + (p.lapInvalid ? " muted" : "");
-    $("lapno").textContent = `Runde ${p.lap}${p.lapInvalid ? " · ungültig" : ""}`;
-    const d = p.deltaBestS;
-    $("delta").textContent = `${d > 0 ? "+" : d < 0 ? "−" : "±"}${de(Math.abs(d), 2)}`;
-    $("delta").className = "delta " + (d > 0.02 ? "loss" : d < -0.02 ? "good" : "");
-    const gap = (v) => (v > 0 ? `${de(v, 1)} s` : "–");
-    $("gapAhead").textContent = gap(p.gapAheadS);
-    $("gapAhead").className = "big " + (p.gapAheadS > 0 && p.gapAheadS < 1 ? "warn" : "");
-    $("gapBehind").textContent = gap(p.gapBehindS);
-    $("gapBehind").className = "big " + (p.gapBehindS > 0 && p.gapBehindS < 1 ? "warn" : "");
-    $("gapPlace").textContent = `In der Wertung: ${gap(p.gapPlaceAheadS)} auf den Platz vor dir, ${gap(p.gapPlaceBehindS)} Vorsprung nach hinten.`;
-    $("fuel").textContent = `${de(p.fuelL, 1)} L`;
-    // VE kommt als Anteil 0..1
-    const ve = p.virtualEnergy <= 1.5 ? p.virtualEnergy * 100 : p.virtualEnergy;
-    $("ve").textContent = p.virtualEnergy > 0 ? `${de(ve, 1)} %` : "–";
-    const c = data.consumption;
-    if (c && c.lapsCounted > 0) {
-      $("fpl").textContent = c.fuelPerLap ? `${de(c.fuelPerLap, 2)} L` : "–";
-      $("fleft").textContent = c.lapsLeftFuel ? `${de(c.lapsLeftFuel, 1)} R` : "–";
-      const vpl = c.vePerLap ? (p.virtualEnergy <= 1.5 ? c.vePerLap * 100 : c.vePerLap) : null;
-      $("vpl").textContent = vpl ? `${de(vpl, 2)} %` : "–";
-      $("vleft").textContent = c.lapsLeftVe ? `${de(c.lapsLeftVe, 1)} R` : "–";
-      const lim = c.lapsLeftVe && c.lapsLeftFuel ? (c.lapsLeftVe < c.lapsLeftFuel ? "Die Energie (VE) ist knapper als der Sprit." : "Der Sprit ist knapper als die Energie (VE).") : "";
-      $("limit").textContent = `Schnitt der letzten ${c.lapsCounted} Runde${c.lapsCounted === 1 ? "" : "n"}. ${lim}`;
-    }
-    const names = ["VL", "VR", "HL", "HR"];
-    $("tyres").innerHTML = p.tyres.map((t, i) => `
-      <div class="tyre">
-        <div class="row"><b>${names[i]}</b><span class="mono" style="font-size:12px">${de(t.pressureKpa, 0)} kPa</span></div>
-        <div class="temps">${t.tempC.map((c) => `<span style="background:${tempColor(c)}">${c > 0 ? Math.round(c) : "–"}</span>`).join("")}</div>
-        <small>Zustand ${de(t.wear * 100, 0)} % · Bremse ${Math.round(t.brakeC)} °C${t.flat ? ' · <b class="loss">Platten</b>' : ""}</small>
-      </div>`).join("");
-  }
-  if (meCar && s) addPath(s.track, meCar.lapDist, meCar.x, meCar.z, s.trackLengthM);
-  $("place").textContent = meCar ? `P${meCar.place} / ${cars.length}` : "–";
-  $("last").textContent = meCar ? lap(meCar.lastLapS) : "–";
-  $("best").textContent = meCar ? lap(meCar.bestLapS) : "–";
-  drawMap(cars, meCar);
-  const near = meCar ? new Set([meCar.place - 1, meCar.place + 1]) : new Set();
-  $("standings").innerHTML = cars.map((c) => `
-    <tr class="${c.isPlayer ? "me" : near.has(c.place) ? "near" : ""}">
-      <td class="mono">${c.place}</td><td>${esc(c.driver)}</td><td class="muted">${esc(c.class)}</td>
-      <td class="mono">${c.place === 1 ? "" : c.lapsBehindLeader > 0 ? `+${c.lapsBehindLeader} R` : `+${de(c.behindLeaderS, 1)}`}</td>
-      <td class="mono">${c.place === 1 ? "" : c.lapsBehindNext > 0 ? `+${c.lapsBehindNext} R` : `+${de(c.behindNextS, 1)}`}</td>
-      <td class="mono">${lap(c.lastLapS)}</td><td class="mono">${lap(c.bestLapS)}</td>
-      <td>${c.inPits ? '<span class="pill on">Box</span>' : c.pitstops ? `<span class="muted">${c.pitstops}×</span>` : ""}</td>
-    </tr>`).join("");
+  if (me) S.lastSector = me.sector;
 }
-const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
 
 // Verbindung mit automatischem Neuaufbau, gezeichnet wird höchstens einmal pro Bildschirm-Frame
 let pending = null;
 function connect() {
   const ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onopen = () => { $("connText").textContent = "verbunden"; };
   ws.onmessage = (e) => {
     const first = pending === null;
     pending = JSON.parse(e.data);
     if (first) requestAnimationFrame(() => { const d = pending; pending = null; render(d); });
   };
   ws.onclose = () => {
-    $("conn").className = "dot err";
+    $("conn").className = "err";
     $("connText").textContent = "Agent nicht erreichbar, neuer Versuch …";
     setTimeout(connect, 2000);
   };

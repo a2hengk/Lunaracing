@@ -36,6 +36,10 @@ public static class SelfTest
             F64(m, v + Layout.Veh.PosX, 12.5);
             F64(m, v + Layout.Veh.PosZ, -40);
             Str(m, v + Layout.Veh.VehicleClass, "GT3");
+            Str(m, v + Layout.Veh.VehicleName, i == 0 ? "Team WRT 2026 #32:WEC" : "Ohne Nummer");
+            F64(m, v + Layout.Veh.LastSector1, 36.9);
+            F64(m, v + Layout.Veh.LastSector2, 74.8);
+            F64(m, v + Layout.Veh.CurSector1, 37.1);
         }
 
         int tel = Layout.Telemetry;
@@ -44,6 +48,15 @@ public static class SelfTest
         m[tel + Layout.TelemData.PlayerHasVehicle] = 1;
         int p = tel + Layout.TelemData.TelemInfo + 1 * Layout.Tel.Size;
         I32(m, p + Layout.Tel.Id, 100);
+        Str(m, p + Layout.Tel.FrontCompoundName, "Medium");
+        m[p + Layout.Tel.TcCut] = 3;
+        m[p + Layout.Tel.Migration] = 2;
+        m[p + Layout.Tel.BoostMotorState] = 3;
+        F64(m, p + Layout.Tel.BatteryCharge, 0.64);
+        // Telemetrie von Rossi (Index 0): ohne Energie
+        int o = tel + Layout.TelemData.TelemInfo;
+        I32(m, o + Layout.Tel.Id, 101);
+        Str(m, o + Layout.Tel.FrontCompoundName, "Soft");
         F64(m, p + Layout.Tel.LocalVelX + 16, -70); // 70 m/s nach vorne = 252 km/h
         I32(m, p + Layout.Tel.Gear, 6);
         F64(m, p + Layout.Tel.Fuel, 42.5);
@@ -66,6 +79,10 @@ public static class SelfTest
         Check(f.Session?.TimeLeftS == 1800, "Restzeit");
         Check(f.Cars.Count == 2 && f.Cars[0].Driver == "Rossi" && f.Cars[1].IsPlayer, "Autos nach Platz sortiert");
         Check(Math.Abs(f.Cars[1].BehindNextS - 0.4) < 1e-9, "Abstand Vordermann");
+        Check(f.Cars[1].Number == "32" && f.Cars[0].Number is null, "Startnummer aus dem Fahrzeugnamen");
+        Check(f.Cars[1].Compound == "Medium" && f.Cars[0].Compound == "Soft", "Reifenmischung pro Auto");
+        Check(f.Cars[1].Energy is { } en && Math.Abs(en - 0.62) < 1e-6 && f.Cars[0].Energy is null, "Energie pro Auto");
+        Check(f.Cars[1].LastS1 == 36.9 && f.Cars[1].LastS2 == 74.8 && f.Cars[1].CurS1 == 37.1, "Sektorzeiten");
         Check(f.Player is not null, "Spieler");
         if (f.Player is { } pl)
         {
@@ -75,6 +92,8 @@ public static class SelfTest
             Check(Math.Abs(pl.BrakeBiasFrontPct - 51.2) < 1e-9, "Bremsbalance");
             Check(Math.Abs(pl.GapAheadS - 0.35) < 1e-6, "Abstand auf der Strecke");
             Check(pl.Tc == 7, "TC");
+            Check(pl.TcCut == 3 && pl.Migration == 2, "TC Cut und Bremsmigration");
+            Check(pl.Hybrid && pl.BoostState == 3 && Math.Abs(pl.Battery - 0.64) < 1e-9, "Hybrid und Batterie");
             Check(Math.Abs(pl.LapTimeS - 40) < 1e-9, "Rundenzeit");
             Check(Math.Abs(pl.Tyres[3].TempC[1] - 85) < 1e-9 && Math.Abs(pl.Tyres[3].PressureKpa - 165.4) < 1e-9, "Reifen HR");
         }

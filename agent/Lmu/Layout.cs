@@ -133,6 +133,8 @@ public static class Layout
         public const int RearBrakeBias = 664;  // double, Anteil hinten
         public const int DeltaBest = 696;      // double, s
         public const int BatteryCharge = 704;  // double 0..1
+        public const int FrontCompoundName = 620; // char[18]
+        public const int BoostMotorState = 744; // byte: 0 kein Hybrid, 1 aus, 2 Antrieb, 3 Rekuperation
         public const int LapInvalidated = 745; // bool
         public const int AbsActive = 746;
         public const int TcActive = 747;
@@ -141,6 +143,10 @@ public static class Layout
         public const int Abs = 756;
         public const int AbsMax = 757;
         public const int MotorMap = 758;
+        public const int TcCut = 754;
+        public const int TcCutMax = 755;
+        public const int Migration = 760;      // Bremsmigration, Stufe
+        public const int MigrationMax = 761;
         public const int VirtualEnergy = 776;  // float
         public const int TimeGapCarAhead = 780;   // float, Auto vor dir auf der Strecke
         public const int TimeGapCarBehind = 784;

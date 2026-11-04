@@ -32,13 +32,26 @@ dotnet publish -c Release -r win-x64 --self-contained false -o publish
 
 ## Was die Live-Seite zeigt
 
-- **Fahren:** Gang, Speed, Drehzahl, Gas und Bremse, TC, ABS, Map, Bremsbalance, ob TC oder ABS gerade eingreifen
-- **Runde:** laufende Rundenzeit, Delta zur Bestzeit (rechnet LMU), Platz, letzte und beste Runde
-- **Abstände:** zum Auto direkt vor und hinter dir **auf der Strecke** (`mTimeGapCarAhead/Behind`), zusätzlich zum Platz davor und dahinter in der Wertung
-- **Sprit und Energie:** Stand, Verbrauch pro Runde (Schnitt der letzten 5 Runden ohne Tanken), wie viele Runden es noch reicht und was knapper ist, Sprit oder VE
-- **Reifen und Bremsen:** Temperatur links, Mitte, rechts, Druck, Zustand und Bremstemperatur pro Rad
-- **Strecke:** alle Autos als Punkte. Die Streckenlinie entsteht in deiner ersten Runde aus deinen eigenen Positionen.
-- **Wertung:** alle Autos mit Abstand zur Spitze und zum Vordermann, letzter und bester Runde und Boxenstopps
+Gedacht für einen zweiten Bildschirm mit 1920×1080 neben dem Rad (drei Spalten, nichts scrollt). Auf dem Tablet zwei Spalten, auf dem Handy eine.
+
+- **Kopfzeile:** Platz, Session und Restzeit, „Runde 2 von etwa 31“ (Restzeit geteilt durch deine letzte Runde), Flagge, Strecke und Temperaturen
+- **Feld:**
+  - Wertung mit Platz, Startnummer, Fahrer, Abstand zum Führenden, Reifenmischung (S/M/H) und Energie
+  - Autos unter 1 s zu dir sind orange
+  - bei mehreren Klassen ein farbiger Strich pro Klasse und der Abstand innerhalb der Klasse
+  - Karte mit allen Autos und Platznummer, Sektorgrenzen da, wo du den Sektor wechselst
+- **Du:**
+  - 15 Schaltlichter, Gang, Speed, Drehzahl
+  - Delta zur Bestzeit, aktuelle, letzte und beste Runde
+  - drei Sektoren: der laufende mit Live-Delta, die anderen lila/grün/gelb gegen deine beste in dieser Session
+  - „Hinter dir“ und „Vor dir“ mit Trend pro Runde, Abstandsband ±3 s
+- **Auto:**
+  - Reifen mit Druck, drei Temperaturen (innen immer zur Fahrzeugmitte), Zustand und Bremse
+  - „Box spätestens Ende Runde N“ aus VE oder Sprit, was knapper ist
+  - Batterie bei Hybrid
+  - TC, TC Cut, ABS, Map, Bremsbalance, Wasser, Öl, Bremsmigration
+
+Die Schriften (Saira, Saira Condensed, OFL) liegen in `wwwroot/fonts`, damit die Seite im Heimnetz ohne Google Fonts läuft.
 
 Steam-IDs der anderen Fahrer stehen zwar im Shared Memory, werden aber nie gelesen.
 
@@ -56,4 +69,13 @@ Getestet habe ich bisher nur den Parser gegen einen künstlichen Speicherblock (
 
 - Stimmen Speed, Gang, Sprit und Abstände mit dem Spiel überein?
 - **Reifenzustand:** LMU beschreibt `mWear` nur als „0.0–1.0, Anteil vom Maximum“. Die Seite zeigt den Wert als Prozent. Fällt er im Stint, ist es der Restzustand. Steigt er, ist es der Verschleiß, und die Anzeige muss umgedreht werden.
+- **Reifenmischung** (`mFrontTireCompoundName`): Die Seite macht aus „Soft“, „Medium“, „Hard“ und „Wet“ die Buchstaben S/M/H/W. Heißt die Mischung bei LMU anders, steht ihr erster Buchstabe in grau da.
+- **Energie pro Auto** (`mVirtualEnergy` aus der Telemetrie jedes Autos): Wahrscheinlich füllt LMU den Wert nur für dein Auto, dann bleibt die Spalte bei den anderen leer.
+- **Startnummer:** Ein eigenes Feld gibt es nicht. Sie kommt aus dem Fahrzeugnamen („#32“).
+- **Sektorzeiten** (`mCurSector1/2`, `mLastSector1/2`, kumuliert): Prüfen, ob „S2 letzte Runde“ zu den Zeiten im Spiel passt.
+- **Sektorgrenzen auf der Karte** kommen aus dem Wechsel von `mSector`. Liegen sie an der falschen Stelle, ist die Reihenfolge 1, 2, 0 anders als gedacht.
+- **TC Cut, Bremsmigration** (`mTCCut`, `mMigration`): Die Seite zeigt die Stufe, nicht den Wert. Bremsmigration nur bei Hybrid oder wenn `mMigrationMax` über 0 liegt.
+- **Batterie** (`mBatteryChargeFraction`) und „lädt“/„Boost“ aus `mElectricBoostMotorState`: nur bei Hybrid sichtbar.
+- **Flagge:** Aus `mGamePhase`, `mYellowFlagState` und `mSectorFlag`. Bei `mSectorFlag` sagt selbst der Header, dass die Zuordnung zu den Sektoren unsicher ist. Den Wert 11 aus den Aufnahmen werte ich nicht als Gelb.
+- **Schaltlichter:** fangen bei 70 % der Maximaldrehzahl an. Passt das nicht zum Auto, in `renderDrive` anpassen.
 - **Virtual Energy:** Ich nehme an, `mVirtualEnergy` ist ein Anteil von 0 bis 1. Zeigt die Seite Unsinn wie 9500 %, ist es eine andere Einheit.

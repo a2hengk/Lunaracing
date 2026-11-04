@@ -45,6 +45,14 @@ public static class Parser
             YellowFlag: (sbyte)info[Layout.Info.YellowFlagState],
             SectorYellow: [(sbyte)info[Layout.Info.SectorFlag], (sbyte)info[Layout.Info.SectorFlag + 1], (sbyte)info[Layout.Info.SectorFlag + 2]]);
 
+        // Telemetrie gibt es für alle aktiven Autos: Reifenmischung und Energie pro Auto über die ID
+        var telById = new Dictionary<int, (string Compound, double Energy)>();
+        for (int i = 0; i < active; i++)
+        {
+            var t = tel.Slice(Layout.TelemData.TelemInfo + i * Layout.Tel.Size, Layout.Tel.Size);
+            telById[I32(t, Layout.Tel.Id)] = (Str(t, Layout.Tel.FrontCompoundName, 18), F32(t, Layout.Tel.VirtualEnergy));
+        }
+
         var cars = new List<CarInfo>(numVehicles);
         var veh = m.Slice(Layout.Scoring + Layout.ScoringData.VehScoring);
         for (int i = 0; i < numVehicles; i++)
@@ -71,7 +79,16 @@ public static class Parser
                 Pitstops: I16(v, Layout.Veh.NumPitstops),
                 Sector: (sbyte)v[Layout.Veh.Sector],
                 X: F64(v, Layout.Veh.PosX),
-                Z: F64(v, Layout.Veh.PosZ)));
+                Z: F64(v, Layout.Veh.PosZ))
+            {
+                Number = CarNumber(Str(v, Layout.Veh.VehicleName, 64)),
+                Compound = telById.TryGetValue(I32(v, Layout.Veh.Id), out var tc) && tc.Compound.Length > 0 ? tc.Compound : null,
+                Energy = telById.TryGetValue(I32(v, Layout.Veh.Id), out var te) && te.Energy > 0 ? te.Energy : null,
+                LastS1 = F64(v, Layout.Veh.LastSector1),
+                LastS2 = F64(v, Layout.Veh.LastSector2),
+                CurS1 = F64(v, Layout.Veh.CurSector1),
+                CurS2 = F64(v, Layout.Veh.CurSector2),
+            });
         }
         cars.Sort((a, b) => a.Place.CompareTo(b.Place));
 
@@ -116,6 +133,13 @@ public static class Parser
                 Abs: p[Layout.Tel.Abs],
                 AbsMax: p[Layout.Tel.AbsMax],
                 MotorMap: p[Layout.Tel.MotorMap],
+                TcCut: p[Layout.Tel.TcCut],
+                TcCutMax: p[Layout.Tel.TcCutMax],
+                Migration: p[Layout.Tel.Migration],
+                MigrationMax: p[Layout.Tel.MigrationMax],
+                Hybrid: p[Layout.Tel.BoostMotorState] != 0,
+                Battery: F64(p, Layout.Tel.BatteryCharge),
+                BoostState: p[Layout.Tel.BoostMotorState],
                 TcActive: p[Layout.Tel.TcActive] != 0,
                 AbsActive: p[Layout.Tel.AbsActive] != 0,
                 Limiter: p[Layout.Tel.SpeedLimiter] != 0,
@@ -147,6 +171,13 @@ public static class Parser
         >= 10 and <= 13 => "Rennen",
         _ => "Unbekannt",
     };
+
+    /// <summary>„Team WRT 2026 #32:WEC“ → „32“</summary>
+    public static string? CarNumber(string vehicleName)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(vehicleName, @"#(\d+)");
+        return m.Success ? m.Groups[1].Value : null;
+    }
 
     static double K(double kelvin) => kelvin > 0 ? kelvin - 273.15 : 0;
     static int I32(ReadOnlySpan<byte> s, int o) => BinaryPrimitives.ReadInt32LittleEndian(s.Slice(o));

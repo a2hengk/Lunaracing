@@ -46,6 +46,16 @@ public sealed record PlayerInfo(
     int Abs,
     int AbsMax,
     int MotorMap,
+    int TcCut,
+    int TcCutMax,
+    int Migration,
+    int MigrationMax,
+    /// <summary>Hybrid-Antrieb vorhanden (mElectricBoostMotorState ungleich 0)</summary>
+    bool Hybrid,
+    /// <summary>Batterie 0..1, nur bei Hybrid sinnvoll</summary>
+    double Battery,
+    /// <summary>1 aus, 2 Antrieb, 3 Rekuperation</summary>
+    int BoostState,
     bool TcActive,
     bool AbsActive,
     bool Limiter,
@@ -81,4 +91,15 @@ public sealed record CarInfo(
     int Pitstops,
     int Sector,
     double X,
-    double Z);
+    double Z,
+    /// <summary>Startnummer aus dem Fahrzeugnamen („#32“), null wenn keine drinsteht</summary>
+    string? Number = null,
+    /// <summary>Reifenmischung vorne, wie LMU sie nennt (z. B. „Medium“), null ohne Telemetrie für dieses Auto</summary>
+    string? Compound = null,
+    /// <summary>Virtual Energy 0..1, null wenn LMU für dieses Auto nichts liefert</summary>
+    double? Energy = null,
+    /// <summary>Sektorzeiten in s, kumuliert wie bei LMU (S2 = S1 + S2), 0 = noch keine</summary>
+    double LastS1 = 0,
+    double LastS2 = 0,
+    double CurS1 = 0,
+    double CurS2 = 0);
