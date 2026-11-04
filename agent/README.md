@@ -6,7 +6,7 @@ Die Live-Seite kommt vom Agent selbst und nicht von Vercel. Eine HTTPS-Seite dar
 
 ## Starten
 
-Braucht das .NET 8 SDK (`winget install Microsoft.DotNet.SDK.8`).
+Braucht ein .NET SDK ab Version 8 (`winget install Microsoft.DotNet.SDK.8`). Neuere Versionen wie .NET 10 gehen auch, der Agent läuft dann auf der installierten Version.
 
 ```powershell
 cd agent
