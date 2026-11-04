@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { TelemetryChart } from "@/components/lap-analysis";
 import { CLOSE_GAP_S, type Corner, type CornerStats } from "@/lib/analysis/corners";
 import type { DeltaPoint, DistPoint } from "@/lib/telemetry/compare";
@@ -33,8 +33,9 @@ function shift(ref: number | null, cmp: number | null, later = "später", earlie
 const ALONGSIDE_MIN_M = 10;
 
 /** Ein Satz zur Kurve mit dem größten Zeitverlust: was in der Vergleichsrunde anders war. */
-export function lossSummary(row: Row, labels: { reference: string; compare: string }): string {
-  const { ref, cmp, corner, dt } = row;
+/** Was in der Vergleichsrunde in dieser Kurve anders war, als Satz. */
+export function cornerCauses(row: Row): string {
+  const { ref, cmp } = row;
   const parts: string[] = [];
   const brake = shift(ref.brakeAt, cmp.brakeAt);
   if (brake && brake !== "gleich") parts.push(`${brake} gebremst`);
@@ -57,7 +58,13 @@ export function lossSummary(row: Row, labels: { reference: string; compare: stri
     parts.push("in beiden Runden dicht hinter einem Auto");
   }
   const what = parts.length ? parts.join(", ") : "keine klare Ursache in Bremse, Speed oder Gas";
-  return `Kurve ${corner.n}${corner.name ? ` (${corner.name})` : ""}: ${labels.compare} ${dt > 0 ? "verliert" : "gewinnt"} ${de(Math.abs(dt), 2)} s gegenüber ${labels.reference}. ${what.charAt(0).toUpperCase()}${what.slice(1)}.`;
+  return `${what.charAt(0).toUpperCase()}${what.slice(1)}.`;
+}
+
+/** Ein Satz zur Kurve mit dem größten Zeitverlust: was in der Vergleichsrunde anders war. */
+export function lossSummary(row: Row, labels: { reference: string; compare: string }): string {
+  const { corner, dt } = row;
+  return `Kurve ${corner.n}${corner.name ? ` (${corner.name})` : ""}: ${labels.compare} ${dt > 0 ? "verliert" : "gewinnt"} ${de(Math.abs(dt), 2)} s gegenüber ${labels.reference}. ${cornerCauses(row)}`;
 }
 
 export type CornerTraces = {
@@ -87,137 +94,116 @@ export function CornerTable({
       else next.add(n);
       return next;
     });
-  const cols = hasGapCols(rows) ? 8 : 7;
-  const worst = rows.toSorted((a, b) => b.dt - a.dt).at(0);
-  const best = rows.toSorted((a, b) => a.dt - b.dt).at(0);
   const hasGap = hasGapCols(rows);
+  const worstN = rows.filter((r) => r.dt > 0.05).toSorted((a, b) => b.dt - a.dt).at(0)?.corner.n;
+  // Balken: 100 px je Seite entsprechen dem größten Delta der Runde
+  const maxDt = Math.max(0.05, ...rows.map((r) => Math.abs(r.dt)));
 
   return (
-    <section className="rounded-xl border border-line bg-panel p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Kurven</h2>
-        <span className="text-xs text-muted">
-          {labels.compare} gegen {labels.reference} · Klick auf eine Kurve klappt ihre Telemetrie auf
-        </span>
+    <section className="flex flex-wrap gap-x-10 gap-y-6 border-t border-line py-10">
+      <div className="flex-[0_1_220px]">
+        <h2 className="font-display text-[30px] leading-tight font-semibold">Kurven</h2>
+        <p className="mt-2 text-sm text-muted">
+          {labels.compare} gegen {labels.reference}, in Streckenreihenfolge. Aufklappen zeigt die Telemetrie der Kurve.
+        </p>
       </div>
-
-      {worst && worst.dt > 0.05 && (
-        <p className="mb-2 rounded-lg bg-bg px-3 py-2 text-sm">
-          <span className="text-loss">Größter Verlust · </span>
-          {lossSummary(worst, labels)}
-        </p>
-      )}
-      {best && best.dt < -0.05 && (
-        <p className="mb-3 rounded-lg bg-bg px-3 py-2 text-sm">
-          <span className="text-good">Größter Gewinn · </span>
-          {lossSummary(best, labels)}
-        </p>
-      )}
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="text-left text-xs text-muted">
-            <tr className="border-b border-line">
-              <th className="py-2 pr-3 font-medium">Kurve</th>
-              <th className="py-2 pr-3 font-medium">Bremspunkt</th>
-              <th className="py-2 pr-3 font-medium">Min-Speed (km/h)</th>
-              <th className="py-2 pr-3 font-medium">Gas wieder an</th>
-              <th className="py-2 pr-3 font-medium">Trail-Braking (m)</th>
-              <th className="py-2 pr-3 font-medium">Rollen (m)</th>
-              {hasGap && (
-                <th className="py-2 pr-3 font-medium" title="Durchschnittlicher Abstand zum Auto vor dir in der Kurve">
-                  Vordermann (s)
-                </th>
-              )}
-              <th className="py-2 text-right font-medium">Zeit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const dv = r.cmp.minSpeed - r.ref.minSpeed;
-              const isOpen = open.has(r.corner.n);
-              return (
-                <Fragment key={r.corner.n}>
-                <tr
-                  onClick={() => toggle(r.corner.n)}
-                  aria-expanded={isOpen}
-                  className={`cursor-pointer border-b border-line transition hover:bg-bg ${activeCorner === r.corner.n || isOpen ? "bg-bg" : ""}`}
-                >
-                  <td className="py-2 pr-3">
-                    <span aria-hidden className={`mr-2 inline-block text-muted transition ${isOpen ? "rotate-90" : ""}`}>›</span>
-                    <span className="font-semibold">{r.corner.n}</span>
-                    {r.corner.name && <span className="ml-2">{r.corner.name}</span>}
-                    <span className="ml-2 text-xs text-muted">bei {de(r.corner.apex / 1000, 1)} km</span>
-                  </td>
-                  <td className="py-2 pr-3">
-                    {r.ref.brakeAt === null && r.cmp.brakeAt === null ? (
-                      <span className="text-muted">ohne Bremse</span>
-                    ) : (
-                      shift(r.ref.brakeAt, r.cmp.brakeAt) ?? <span className="text-muted">nur eine Runde bremst</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 font-mono tabular-nums">
-                    <span className="text-ref">{de(r.ref.minSpeed)}</span>
-                    <span className="text-muted"> → </span>
-                    <span className="text-accent">{de(r.cmp.minSpeed)}</span>
-                    {Math.abs(dv) >= 1 && (
-                      <span className={`ml-2 text-xs ${dv < 0 ? "text-loss" : "text-good"}`}>
-                        {dv > 0 ? "+" : "−"}
-                        {de(Math.abs(dv))}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3">{shift(r.ref.throttleAt, r.cmp.throttleAt) ?? "–"}</td>
-                  <td className="py-2 pr-3 font-mono tabular-nums">
-                    <span className="text-ref">{r.ref.trailBrakeM}</span>
-                    <span className="text-muted"> / </span>
-                    <span className="text-accent">{r.cmp.trailBrakeM}</span>
-                  </td>
-                  <td className="py-2 pr-3 font-mono tabular-nums">
-                    <span className="text-ref">{r.ref.coastM}</span>
-                    <span className="text-muted"> / </span>
-                    <span className="text-accent">{r.cmp.coastM}</span>
-                  </td>
-                  {hasGap && (
-                    <td className="py-2 pr-3 font-mono tabular-nums">
-                      <GapValue g={r.ref.gapAhead} color="text-ref" />
-                      <span className="text-muted"> / </span>
-                      <GapValue g={r.cmp.gapAhead} color="text-accent" />
-                      {(r.ref.alongsideM >= ALONGSIDE_MIN_M || r.cmp.alongsideM >= ALONGSIDE_MIN_M) && (
-                        <span className="ml-2 rounded bg-[hsl(320_90%_62%/0.15)] px-1.5 py-0.5 font-sans text-[11px] text-[hsl(320_90%_70%)]">
-                          Rad an Rad
+      <ol className="flex min-w-0 flex-[999_1_640px] flex-col">
+        {rows.map((r) => {
+          const isOpen = open.has(r.corner.n);
+          const loss = r.dt > 0;
+          const w = Math.max(2, Math.round((Math.abs(r.dt) / maxDt) * 100));
+          const dv = r.cmp.minSpeed - r.ref.minSpeed;
+          return (
+            <li key={r.corner.n} className={`border-b border-line ${activeCorner === r.corner.n ? "bg-panel" : ""}`}>
+              <button
+                onClick={() => toggle(r.corner.n)}
+                aria-expanded={isOpen}
+                className="flex min-h-16 w-full flex-wrap items-center gap-x-6 gap-y-2 px-1 py-3.5 text-left transition hover:bg-panel/60"
+              >
+                <span className="flex flex-[0_0_210px] items-baseline gap-2.5">
+                  <span
+                    className={`inline-grid h-6 w-6 shrink-0 place-items-center self-center rounded-full font-display text-sm font-bold ${
+                      r.corner.n === worstN ? "bg-loss text-bg" : "border border-muted"
+                    }`}
+                  >
+                    {r.corner.n}
+                  </span>
+                  <span className="font-display text-xl font-semibold">{r.corner.name ?? `Kurve ${r.corner.n}`}</span>
+                  <span className="text-[13px] text-muted">{de(r.corner.apex / 1000, 1)} km</span>
+                </span>
+                <span aria-hidden className="relative h-3 flex-[0_0_200px]">
+                  <span className="absolute top-[-4px] left-[100px] h-5 w-px bg-same" />
+                  <span
+                    className={`absolute top-0 h-3 rounded-sm ${loss ? "bg-loss" : "bg-accent"}`}
+                    style={{ width: w, left: loss ? 101 : 100 - w }}
+                  />
+                </span>
+                <span className={`flex-[0_0_72px] text-right font-display text-xl font-semibold ${loss ? "text-loss" : "text-accent"}`}>
+                  {loss ? "+" : "−"}
+                  {de(Math.abs(r.dt), 2)} s
+                </span>
+                <span className="min-w-0 flex-[999_1_280px] text-soft">{cornerCauses(r)}</span>
+                <span aria-hidden className={`text-muted transition ${isOpen ? "rotate-90" : ""}`}>›</span>
+              </button>
+              {isOpen && (
+                <div className="flex flex-col gap-4 px-1 pt-1 pb-6">
+                  <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
+                    <Fact label="Bremspunkt">
+                      {r.ref.brakeAt === null && r.cmp.brakeAt === null
+                        ? "ohne Bremse"
+                        : (shift(r.ref.brakeAt, r.cmp.brakeAt) ?? "nur eine Runde bremst")}
+                    </Fact>
+                    <Fact label="Min-Speed">
+                      <span className="text-ref">{de(r.ref.minSpeed)}</span> → <span className="text-accent">{de(r.cmp.minSpeed)}</span>
+                      {Math.abs(dv) >= 1 && (
+                        <span className={`ml-1.5 text-xs ${dv < 0 ? "text-loss" : "text-accent"}`}>
+                          {dv > 0 ? "+" : "−"}
+                          {de(Math.abs(dv))}
                         </span>
                       )}
-                    </td>
-                  )}
-                  <td
-                    className={`py-2 text-right font-mono tabular-nums ${r.dt > 0.05 ? "text-loss" : r.dt < -0.05 ? "text-good" : "text-muted"}`}
-                  >
-                    {r.dt >= 0 ? "+" : "−"}
-                    {de(Math.abs(r.dt), 2)} s
-                  </td>
-                </tr>
-                {isOpen && (
-                  <tr className="border-b border-line bg-bg/40">
-                    <td colSpan={cols} className="px-1 py-3">
-                      <CornerChart corner={r.corner} traces={traces} labels={labels} />
-                    </td>
-                  </tr>
-                )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-3 text-[11px] text-muted">
+                    </Fact>
+                    <Fact label="Gas wieder an">{shift(r.ref.throttleAt, r.cmp.throttleAt) ?? "–"}</Fact>
+                    <Fact label="Trail-Braking">
+                      <span className="text-ref">{r.ref.trailBrakeM}</span> / <span className="text-accent">{r.cmp.trailBrakeM}</span> m
+                    </Fact>
+                    <Fact label="Rollen">
+                      <span className="text-ref">{r.ref.coastM}</span> / <span className="text-accent">{r.cmp.coastM}</span> m
+                    </Fact>
+                    {hasGap && (
+                      <Fact label="Vordermann">
+                        <GapValue g={r.ref.gapAhead} color="text-ref" /> / <GapValue g={r.cmp.gapAhead} color="text-accent" />
+                        {(r.ref.alongsideM >= ALONGSIDE_MIN_M || r.cmp.alongsideM >= ALONGSIDE_MIN_M) && (
+                          <span className="ml-1.5 text-xs text-[hsl(320_90%_70%)]">Rad an Rad</span>
+                        )}
+                      </Fact>
+                    )}
+                  </dl>
+                  <div className="rounded-lg bg-panel p-3">
+                    <CornerChart corner={r.corner} traces={traces} labels={labels} />
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <p className="w-full text-xs text-muted">
         Kurven werden aus dem Speed-Verlauf der Bestrunde erkannt: jede Stelle, an der du mindestens 12 km/h abbaust.
-        Schnelle Kurven ohne Speed-Verlust (z. B. voll gefahren) tauchen nicht auf. Trail-Braking = Meter, in denen
-        gleichzeitig gebremst und gelenkt wird.
-        {hasGap &&
-          " Vordermann = mittlerer Abstand zum Auto vor dir in der Kurve, fett unter 1 s (Windschatten, schmutzige Luft oder Verkehr). „frei“ = meist kein Auto in Reichweite. „Rad an Rad“ = mindestens 10 m weniger als eine Wagenlänge Abstand."}
+        Schnelle Kurven ohne Speed-Verlust tauchen nicht auf. Trail-Braking = Meter, in denen gleichzeitig gebremst und
+        gelenkt wird. Werte jeweils <span className="text-ref">{labels.reference}</span> /{" "}
+        <span className="text-accent">{labels.compare}</span>.
+        {hasGap && " Vordermann = mittlerer Abstand zum Auto vor dir in der Kurve, fett unter 1 s. „Rad an Rad“ = mindestens 10 m weniger als eine Wagenlänge Abstand."}
       </p>
     </section>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="font-display text-base">{children}</dd>
+    </div>
   );
 }
 

@@ -45,7 +45,7 @@ export function StrategyCalc({
   return (
     <details className="group">
       <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-3 [&::-webkit-details-marker]:hidden">
-        <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-muted uppercase">
+        <h2 className="flex items-center gap-2 font-display text-[22px] font-semibold">
           <span aria-hidden className="inline-block transition group-open:rotate-90">›</span>
           Sprit- und VE-Rechner
         </h2>
