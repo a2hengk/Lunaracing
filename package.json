@@ -11,7 +11,8 @@
     "inspect": "tsx scripts/inspect-duckdb.mts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
-    "import": "tsx scripts/import-lmu.mts"
+    "import": "tsx scripts/import-lmu.mts",
+    "watch": "tsx scripts/watch-lmu.mts"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.2",

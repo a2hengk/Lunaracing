@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SessionView } from "@/components/session-view";
-import { getSession } from "@/lib/data";
+import { getSession, listSessions } from "@/lib/data";
 import { formatDate, joinParts, sessionTypeDe, shortLayout, shortTrack } from "@/lib/format";
 
 type Params = PageProps<"/sessions/[id]">["params"];
@@ -24,8 +24,9 @@ export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
 
 async function SessionContent({ params }: { params: Params }) {
   const { id } = await params;
-  const session = await getSession(id);
+  const [session, all] = await Promise.all([getSession(id), listSessions()]);
   if (!session) notFound();
+  const related = all.filter((s) => s.track === session.track && s.layout === session.layout);
 
   const w = session.weather;
   return (
@@ -45,7 +46,7 @@ async function SessionContent({ params }: { params: Params }) {
           )}
         </p>
       </header>
-      <SessionView session={session} />
+      <SessionView session={session} related={related} />
     </>
   );
 }

@@ -16,12 +16,10 @@
  * Import neue Werte kennt:  npm run import -- --neu "<pfad>\UserData\Telemetry"
  */
 import { config } from "dotenv";
-import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { convertRecording } from "../src/lib/lmu/convert";
-import { readRecording } from "./lib/read-lmu.mjs";
-import { checkDb, connect, deleteSession, describeDbError, saveSession, sessionExists } from "./lib/save.mjs";
+import { importFile } from "./lib/import.mjs";
+import { checkDb, connect, describeDbError } from "./lib/save.mjs";
 
 config({ path: [".env.local", ".env"], quiet: true });
 
@@ -56,7 +54,7 @@ let imported = 0;
 for (const file of files.toSorted()) {
   const name = basename(file);
   try {
-    const result = await importFile(file);
+    const result = await importFile(db, file, { reimport });
     if (result.status === "imported") imported++;
     console.log(`${result.message}: ${name}`);
   } catch (e) {
@@ -66,26 +64,3 @@ for (const file of files.toSorted()) {
 
 console.log(`${imported} neu importiert. * = von LMU nicht gewertet`);
 await db.$client.end();
-
-async function importFile(file: string) {
-  const id = slug(basename(file, ".duckdb"));
-  const hash = createHash("sha256").update(await readFile(file)).digest("hex");
-  if (await sessionExists(db, id, hash)) {
-    if (!reimport) return { status: "skipped", message: "übersprungen (schon importiert)" };
-    await deleteSession(db, id);
-  }
-
-  const session = convertRecording(await readRecording(file), id);
-  if (session.laps.length === 0) return { status: "skipped", message: "übersprungen (keine ganze Runde)" };
-
-  await saveSession(db, session, basename(file), hash);
-  const laps = session.laps.map((l) => `${l.start ? "Start" : l.lap}${l.valid ? "" : "*"}`).join(", ");
-  return { status: "imported", message: `importiert, ${session.laps.length} Runden (${laps})` };
-}
-
-function slug(name: string) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}

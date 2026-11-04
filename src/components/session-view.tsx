@@ -6,20 +6,30 @@ import { LapAnalysis, type Range } from "@/components/lap-analysis";
 import { LapStats } from "@/components/lap-stats";
 import { StintReport } from "@/components/stint-report";
 import { StrategyCalc } from "@/components/strategy-calc";
+import { TrackHistory } from "@/components/track-history";
+import type { SessionListItem } from "@/lib/data-types";
+import { formatDate, formatSector, sessionTypeDe } from "@/lib/format";
+import { theoreticalBest } from "@/lib/analysis/best";
 import { splitStints } from "@/lib/analysis/stints";
 import { cornerStats, detectCorners } from "@/lib/analysis/corners";
 import { drivingStyle } from "@/lib/analysis/style";
 import { cornerName } from "@/data/tracks";
-import { formatSector } from "@/lib/format";
 import { sessionKind } from "@/lib/group";
-import { bestLap, lapSamples, type SessionFile } from "@/lib/lmu/session";
+import { bestLap, lapSamples, type SessionFile, type StoredLap } from "@/lib/lmu/session";
 import { deltaTrace, resampleByDistance } from "@/lib/telemetry/compare";
 import { formatLapTime } from "@/lib/telemetry/laps";
 import { buildOutline } from "@/lib/track/outline";
 
 const STEP_M = 5;
 
-export function SessionView({ session: input }: { session: SessionFile }) {
+export function SessionView({
+  session: input,
+  related = [],
+}: {
+  session: SessionFile;
+  /** Sessions auf derselben Strecke (inklusive dieser), für Bestzeit-Verlauf und Vergleich */
+  related?: SessionListItem[];
+}) {
   // Der Abstand zum Vordermann meint das Auto eine Position vor dir in der Wertung. Im Rennen
   // ist das das Auto vor dir auf der Strecke, im Training und in der Quali (Wertung nach
   // Bestzeit) irgendein Auto. Deshalb nur im Rennen auswerten.
@@ -42,7 +52,30 @@ export function SessionView({ session: input }: { session: SessionFile }) {
   );
   const outline = useMemo(() => buildOutline(lapSamples(best), 10), [best]);
 
-  const reference = byLap.get(refLap)!;
+  // Referenz aus einer anderen Session (deren Bestrunde), null = Runde aus dieser Session
+  const [ext, setExt] = useState<{ slug: string; label: string; points: ReturnType<typeof resampleByDistance> } | null>(null);
+  const [loadingRef, setLoadingRef] = useState<string | null>(null);
+  const [refError, setRefError] = useState<string | null>(null);
+  const pickExternal = async (s: SessionListItem) => {
+    setLoadingRef(s.slug);
+    setRefError(null);
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(s.slug)}/best-lap`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const body = (await res.json()) as { lap: StoredLap };
+      setExt({
+        slug: s.slug,
+        label: `${sessionTypeDe(s.sessionType)} ${formatDate(s.recordedAt).split(",")[0]} R${body.lap.lap}`,
+        points: resampleByDistance(lapSamples(body.lap), STEP_M),
+      });
+    } catch {
+      setRefError("Die Runde ließ sich nicht laden.");
+    } finally {
+      setLoadingRef(null);
+    }
+  };
+
+  const reference = ext?.points ?? byLap.get(refLap)!;
   const compare = byLap.get(cmpLap)!;
   const delta = useMemo(() => deltaTrace(reference, compare), [reference, compare]);
 
@@ -76,7 +109,7 @@ export function SessionView({ session: input }: { session: SessionFile }) {
     [session, byLap],
   );
   const lapName = (n: number) => (session.laps.find((l) => l.lap === n)?.start ? "Startrunde" : `Runde ${n}`);
-  const labels = { reference: lapName(refLap), compare: lapName(cmpLap) };
+  const labels = { reference: ext?.label ?? lapName(refLap), compare: lapName(cmpLap) };
 
   const stints = useMemo(() => splitStints(session.laps), [session]);
   // Startwerte für den Rechner: Durchschnitt aller Runden ohne Boxengasse und ohne Startrunde
@@ -97,6 +130,8 @@ export function SessionView({ session: input }: { session: SessionFile }) {
   const bestSectors = [0, 1, 2].map((i) =>
     Math.min(...session.laps.filter((l) => l.valid).map((l) => l.sectorsMs.at(i)!).filter((v) => v > 0)),
   );
+
+  const ideal = theoreticalBest(session.laps);
 
   const lapTable = (
     <section className="overflow-x-auto rounded-xl border border-line bg-panel">
@@ -135,7 +170,14 @@ export function SessionView({ session: input }: { session: SessionFile }) {
               ))}
               <td className="px-3 py-2 text-right">
                 <div className="inline-flex gap-1 text-xs">
-                  <Pick active={refLap === l.lap} onClick={() => setRefLap(l.lap)} tone="ref">
+                  <Pick
+                    active={!ext && refLap === l.lap}
+                    onClick={() => {
+                      setExt(null);
+                      setRefLap(l.lap);
+                    }}
+                    tone="ref"
+                  >
                     Referenz
                   </Pick>
                   <Pick active={cmpLap === l.lap} onClick={() => setCmpLap(l.lap)} tone="accent">
@@ -146,6 +188,28 @@ export function SessionView({ session: input }: { session: SessionFile }) {
             </tr>
           ))}
         </tbody>
+        {ideal && (
+          <tfoot className="border-t border-line bg-bg/40 text-xs">
+            <tr>
+              <td className="px-3 py-2.5 text-muted" title="Summe der besten Sektoren aus gewerteten Runden">
+                Theoretisch
+              </td>
+              <td className="px-3 py-2.5 font-mono text-sm text-good tabular-nums">{formatLapTime(ideal.timeMs)}</td>
+              {ideal.sectors.map((sec, i) => (
+                <td key={i} className="px-3 py-2.5 text-muted">
+                  aus Runde {sec.lap}
+                  {ideal.bestLapLossMs.at(i)! > 0 && (
+                    <span className="ml-1.5 font-mono text-loss tabular-nums">+{(ideal.bestLapLossMs.at(i)! / 1000).toFixed(3)}</span>
+                  )}
+                </td>
+              ))}
+              <td className="px-3 py-2.5 text-right text-muted">
+                Bestzeit {(ideal.bestLapMs - ideal.timeMs) / 1000 > 0 ? "verliert " : ""}
+                <span className="font-mono text-fg tabular-nums">{((ideal.bestLapMs - ideal.timeMs) / 1000).toFixed(3)} s</span>
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </section>
   );
@@ -166,7 +230,29 @@ export function SessionView({ session: input }: { session: SessionFile }) {
           setRange(r);
           setActiveCorner(r ? (corners.find((c) => c.from === r.from && c.to === r.to)?.n ?? null) : null);
         }}
-        aside={lapTable}
+        aside={
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
+            {lapTable}
+            {ext && (
+              <p className="-mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+                Referenz ist gerade die Bestrunde aus einer anderen Session: <span className="text-fg">{ext.label}</span>
+                <button onClick={() => setExt(null)} className="rounded-md bg-bg px-2 py-0.5 hover:text-fg">
+                  zurück zu Runde {refLap}
+                </button>
+              </p>
+            )}
+            {refError && <p className="-mt-3 text-xs text-loss">{refError}</p>}
+            <TrackHistory
+              sessions={related}
+              current={session.id}
+              car={session.car}
+              track={session.track}
+              activeRef={ext?.slug ?? null}
+              loadingRef={loadingRef}
+              onPick={pickExternal}
+            />
+          </div>
+        }
       />
 
       <CornerTable
