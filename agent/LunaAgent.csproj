@@ -8,6 +8,8 @@
     <RootNamespace>LunaAgent</RootNamespace>
     <AssemblyName>LunaAgent</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Läuft auch auf neueren .NET-Versionen (z. B. nur .NET 10 installiert) -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
